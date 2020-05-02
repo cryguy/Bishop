@@ -14,13 +14,13 @@ public class kFrag {
     BigInteger bn_key;
     ECPoint point_commitment;
     ECPoint point_precursor;
-    Signature signature_for_proxy;
-    Signature signature_for_bob;
+    byte[] signature_for_proxy;
+    byte[] signature_for_bob;
     byte key_in_signature;
-    public kFrag(byte[] identifier, BigInteger bn_key, ECPoint point_commitment, ECPoint point_precursor, Signature signature_for_proxy, Signature signature_for_bob) {
+    public kFrag(byte[] identifier, BigInteger bn_key, ECPoint point_commitment, ECPoint point_precursor, byte[] signature_for_proxy, byte[] signature_for_bob) {
         this(identifier,bn_key,point_commitment,point_precursor,signature_for_proxy,signature_for_bob,DELEGATING_AND_RECEIVING);
     }
-    public kFrag(byte[] identifier, BigInteger bn_key, ECPoint point_commitment, ECPoint point_precursor, Signature signature_for_proxy, Signature signature_for_bob, byte key_in_signature) {
+    public kFrag(byte[] identifier, BigInteger bn_key, ECPoint point_commitment, ECPoint point_precursor, byte[] signature_for_proxy, byte[] signature_for_bob, byte key_in_signature) {
         this.identifier = identifier;
         this.bn_key = bn_key;
         this.point_commitment = point_commitment;
