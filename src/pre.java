@@ -14,10 +14,10 @@ public class pre {
     private final static Logger LOGGER = Logger.getLogger(pre.class.getName());
 
     // re-keygen
-    public static ArrayList<kFrag> generate_kfrag(ECPrivateKey delegating_privkey, ECPublicKey receiving_pubkey, int threshold, int N, ECPrivateKey signer) throws GeneralSecurityException {
+    public static ArrayList<kFrag> generate_kfrag(ECPrivateKey delegating_privkey, ECPublicKey receiving_pubkey, int threshold, int N, ECPrivateKey signer) throws GeneralSecurityException, IOException {
         return generate_kfrag(delegating_privkey,receiving_pubkey,threshold,N,signer,true,true);
     }
-    public static ArrayList<kFrag> generate_kfrag(ECPrivateKey delegating_privkey, ECPublicKey receiving_pubkey, int threshold, int N, ECPrivateKey signer, boolean sign_delegating, boolean sign_receiving) throws GeneralSecurityException {
+    public static ArrayList<kFrag> generate_kfrag(ECPrivateKey delegating_privkey, ECPublicKey receiving_pubkey, int threshold, int N, ECPrivateKey signer, boolean sign_delegating, boolean sign_receiving) throws GeneralSecurityException, IOException {
 
         if (threshold <= 0 || threshold > N)
             throw new IllegalArgumentException("Arguments threshold and N must satisfy 0 < threshold <= N");
@@ -88,7 +88,7 @@ public class pre {
             BigInteger rk = coefficients.get(coefficients.size()-1);
             for(int j=-2; j > (((coefficients.size())*-1)-1) ; j--)
             {
-                rk = (rk.multiply(share_index)).add(coefficients.get(coefficients.size()+j));
+                rk = (rk.multiply(share_index).mod(params.getCurve().getOrder())).add(coefficients.get(coefficients.size()+j));
             }
 
             ECPoint commitment = RandomOracle.unsafeHash2Point(params.getG().getEncoded(true),"NuCypher/UmbralParameters/u".getBytes(), params).multiply(rk);

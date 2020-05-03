@@ -1,3 +1,6 @@
+import org.bouncycastle.crypto.digests.Blake2bDigest;
+import org.bouncycastle.crypto.generators.HKDFBytesGenerator;
+import org.bouncycastle.crypto.params.HKDFParameters;
 import org.bouncycastle.jce.spec.ECParameterSpec;
 import org.bouncycastle.math.ec.ECPoint;
 import ove.crypto.digest.Blake2b;
@@ -18,65 +21,57 @@ public class RandomOracle {
         return Arrays.copyOfRange(messageDigest, 0, 8);
     }
 
-    static ECPoint unsafeHash2Point(byte[] data, byte[] label, ECParameterSpec param) {
+    static byte[] kdf(byte[] data, int key_length, byte[] salt, byte[] info) {
 
-        // god... this is tedious
-        // the following implements len(data).to_bytes(4, 'big')
-        // this is gonna be a memory hog if the gc is not ran
-        byte[] len_data_temp =  new byte[]{(byte)data.length};
-        byte[] len_data = new byte[4];
-        int lenappend = 4-len_data_temp.length;
-        System.arraycopy(new byte[lenappend], 0, len_data, 0, lenappend);
-        System.arraycopy(len_data_temp, 0, len_data, lenappend, len_data_temp.length);
+        HKDFParameters params = new HKDFParameters(data, salt, info);
+        Blake2b blake2b = Blake2b.Digest.newInstance();
 
-        byte[] len_label_temp =  new byte[]{(byte)label.length};
-        byte[] len_label = new byte[4];
-        lenappend = 4-len_label_temp.length;
-        System.arraycopy(new byte[lenappend], 0, len_label, 0, lenappend);
-        System.arraycopy(len_label_temp, 0, len_label, lenappend, len_label_temp.length);
+        HKDFBytesGenerator hkdf = new HKDFBytesGenerator(new Blake2bDigest());
+        hkdf.init(params);
+        byte[] output = new byte[key_length];
+        hkdf.generateBytes(output, 0, key_length);
+        return output;
+    }
 
-        // same thing as above...
+    static ECPoint unsafeHash2Point(byte[] data, byte[] label, ECParameterSpec param) throws IOException {
+
+        byte[] len_data = Helpers.intToBytes(data.length,4);
+
+        byte[] len_label = Helpers.intToBytes(label.length,4);
+
         // label_data = len_label + label + len_data + data
         ByteArrayOutputStream output = new ByteArrayOutputStream();
 
-        try {
+        {
             output.write(len_label);
             output.write(label);
             output.write(len_data);
             output.write(data);
-        } catch (IOException e) {
-            e.printStackTrace();
         }
 
         byte[] label_data = output.toByteArray();
+        output.reset();
         // internal 32 bit counter as additional input
         int i = 0;
         while (i < (2^32)){
-            byte[] idata_temp =  new byte[]{(byte)i};
-            byte[] idata = new byte[4];
-            int idata_append = 4-idata_temp.length;
-            System.arraycopy(new byte[idata_append], 0, idata, 0, idata_append);
-            System.arraycopy(idata_temp, 0, idata, idata_append, idata_temp.length);
+
+            byte[] idata = Helpers.intToBytes(i, 4);
+
             Blake2b blake2b = Blake2b.Digest.newInstance();
             // do stupid initialization...
             {
-                // all 64 byte with 0
                 byte[] first_update = new byte[64];
                 blake2b.update(first_update);
             }
 
-            ByteArrayOutputStream label_idata = new ByteArrayOutputStream();
 
-            try {
-                label_idata.write(label_data);
-                label_idata.write(idata);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+            output.write(label_data);
+            output.write(idata);
 
-            byte[] to_digest = label_idata.toByteArray();
-            blake2b.update(to_digest);
-            byte[] hash_digest = Arrays.copyOfRange(blake2b.digest(), 0, 33); // copy 32 bytes , this might need to be changed to accommodate other curves
+
+            blake2b.update(output.toByteArray());
+            output.reset();
+            byte[] hash_digest = Arrays.copyOfRange(blake2b.digest(), 0, 33); // copy 33 bytes, this will be in public key format
 
             byte sign;
             if (hash_digest[0] != (byte)1)
@@ -84,15 +79,12 @@ public class RandomOracle {
             else
                 sign = (byte)3;
 
-            ByteArrayOutputStream comp_point = new ByteArrayOutputStream();
-            try {
-                comp_point.write(sign);
-                comp_point.write(Arrays.copyOfRange(hash_digest, 1, hash_digest.length));
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+            output.write(sign);
+            output.write(Arrays.copyOfRange(hash_digest, 1, hash_digest.length));
 
-            byte[] compressed_point = comp_point.toByteArray();
+            byte[] compressed_point = output.toByteArray();
+
+            output.reset();
             try {
                 return param.getCurve().decodePoint(compressed_point);
             } catch (IllegalArgumentException ignore) {
@@ -108,6 +100,8 @@ public class RandomOracle {
         Blake2b and get resulting hash inside selected curve
          */
     static BigInteger hash2curve(byte[][] items_to_hash, ECParameterSpec parameters) throws GeneralSecurityException {
+        // using blake2b as our hashing algorithm
+        // the following first_update is the "personalization" used by pyumbral.
         Blake2b blake2b = Blake2b.Digest.newInstance();
         // just following what is in the original implementation... which is dumb dumb...
         {
@@ -131,14 +125,10 @@ public class RandomOracle {
         if (hash_digest.signum() != 1) {
             throw new GeneralSecurityException("hash_digest is negative");
         }
-//        System.out.println("hash_digest = " + hash_digest);
-//        System.out.println("hash_digest_hex = " + Helpers.bytesToHex(hash));
 
         BigInteger one = new BigInteger("1");
         BigInteger order_minus_one = parameters.getCurve().getOrder().subtract(one);
-        BigInteger[] divrem = hash_digest.divideAndRemainder(order_minus_one);
 
-        //        System.out.println("finalresult_hex - " + Helpers.bytesToHex(hashfinal.toByteArray()));
         return hash_digest.mod(order_minus_one).add(one); // not with curve... beware!! , might break
     }
 }

@@ -14,12 +14,19 @@ import org.bouncycastle.jce.spec.ECPublicKeySpec;
 import org.bouncycastle.math.ec.ECPoint;
 
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.security.*;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Enumeration;
 
 public class Helpers {
     private static final char[] HEX_ARRAY = "0123456789ABCDEF".toCharArray();
+
+    static byte[] intToBytes( final int i ,final int length) {
+        ByteBuffer bb = ByteBuffer.allocate(length);
+        bb.putInt(i);
+        return bb.array();
+    }
 
     static String bytesToHex(byte[] bytes) {
         char[] hexChars = new char[bytes.length * 2];
