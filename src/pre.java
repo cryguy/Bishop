@@ -6,7 +6,10 @@ import org.bouncycastle.math.ec.ECPoint;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
-import java.security.*;
+import java.security.GeneralSecurityException;
+import java.security.SecureRandom;
+import java.security.Signature;
+import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.logging.Logger;
 
@@ -15,8 +18,51 @@ public class pre {
 
     // re-keygen
     public static ArrayList<kFrag> generate_kfrag(ECPrivateKey delegating_privkey, ECPublicKey receiving_pubkey, int threshold, int N, ECPrivateKey signer) throws GeneralSecurityException, IOException {
-        return generate_kfrag(delegating_privkey,receiving_pubkey,threshold,N,signer,true,true);
+        return generate_kfrag(delegating_privkey, receiving_pubkey, threshold, N, signer, true, true);
     }
+
+    public static SimpleEntry<byte[], Capsule> _encapsulate(ECPublicKey alice_pub, int length) throws GeneralSecurityException {
+
+        ECParameterSpec params = alice_pub.getParameters();
+        ECPoint g = params.getG();
+
+        BigInteger r = Helpers.getRandomPrivateKey().getD();
+        ECPoint pub_r = g.multiply(r);
+
+        BigInteger u = Helpers.getRandomPrivateKey().getD();
+        ECPoint pub_u = g.multiply(u);
+
+        BigInteger h = RandomOracle.hash2curve(new byte[][]{pub_r.getEncoded(true), pub_u.getEncoded(true)}, params);
+
+
+        BigInteger s = u.add(r.multiply(h).mod(params.getCurve().getOrder())).mod(params.getCurve().getOrder());
+
+        System.out.println("s " + Helpers.bytesToHex(s.toByteArray()));
+
+        ECPoint shared = alice_pub.getQ().multiply(r.add(u).mod(params.getCurve().getOrder()));
+
+        byte[] key = RandomOracle.kdf(shared.getEncoded(true), length, null, null);
+
+
+        //return key, Capsule(point_e=pub_r, point_v=pub_u, bn_sig=s, params=params)
+        return new SimpleEntry<>(key, new Capsule(params, pub_r, pub_u, s));
+    }
+
+    public static SimpleEntry<byte[], Capsule> encrypt(ECPublicKey publicKey, byte[] plaintext) throws GeneralSecurityException, IOException {
+        SimpleEntry<byte[], Capsule> key_cap = _encapsulate(publicKey, 32);
+        byte[] key = key_cap.getKey();
+        Capsule capsule = key_cap.getValue();
+
+        byte[] capsule_bytes = capsule.get_bytes();
+
+        // perform chacha-poly1305
+        byte[] nounce = new byte[32];
+        SecureRandom random = new SecureRandom();
+        random.nextBytes(nounce);
+
+        return new SimpleEntry<>(RandomOracle.chacha20_poly(nounce, plaintext, key, capsule_bytes), capsule);
+    }
+
     public static ArrayList<kFrag> generate_kfrag(ECPrivateKey delegating_privkey, ECPublicKey receiving_pubkey, int threshold, int N, ECPrivateKey signer, boolean sign_delegating, boolean sign_receiving) throws GeneralSecurityException, IOException {
 
         if (threshold <= 0 || threshold > N)

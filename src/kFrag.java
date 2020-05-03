@@ -1,10 +1,10 @@
-import org.bouncycastle.asn1.ocsp.Signature;
 import org.bouncycastle.math.ec.ECPoint;
 
 import java.math.BigInteger;
-import java.security.spec.ECParameterSpec;
 
 public class kFrag {
+
+    // TODO: serializing
     static final byte NO_KEY = (byte) 0;
     static final byte DELEGATING_ONLY = (byte) 1;
     static final byte RECEIVING_ONLY = (byte) 2;

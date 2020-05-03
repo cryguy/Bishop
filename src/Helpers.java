@@ -92,21 +92,18 @@ public class Helpers {
         return getPrivateKey(privateKey.getD(), ecSpec);
     }
 
-    static ECPublicKey getPublicKey(ECPrivateKey privateKey) {
+    static ECPublicKey getPublicKey(ECPrivateKey privateKey) throws GeneralSecurityException {
         Security.addProvider(new BouncyCastleProvider());
-        try {
-            KeyFactory keyFactory = KeyFactory.getInstance("ECDSA", "BC");
-            ECParameterSpec ecSpec = ECNamedCurveTable.getParameterSpec("secp256k1");
 
-            ECPoint Q = ecSpec.getG().multiply(privateKey.getD());
-            byte[] publicDerBytes = Q.getEncoded(false);
+        KeyFactory keyFactory = KeyFactory.getInstance("ECDSA", "BC");
+        ECParameterSpec ecSpec = ECNamedCurveTable.getParameterSpec("secp256k1");
 
-            ECPoint point = ecSpec.getCurve().decodePoint(publicDerBytes);
-            ECPublicKeySpec pubSpec = new ECPublicKeySpec(point, ecSpec);
-            return (ECPublicKey) keyFactory.generatePublic(pubSpec);
-        } catch (NoSuchAlgorithmException | NoSuchProviderException | InvalidKeySpecException e) {
-            e.printStackTrace();
-        }
-        return null;
+        ECPoint Q = ecSpec.getG().multiply(privateKey.getD());
+        byte[] publicDerBytes = Q.getEncoded(false);
+
+        ECPoint point = ecSpec.getCurve().decodePoint(publicDerBytes);
+        ECPublicKeySpec pubSpec = new ECPublicKeySpec(point, ecSpec);
+        return (ECPublicKey) keyFactory.generatePublic(pubSpec);
+
     }
 }
