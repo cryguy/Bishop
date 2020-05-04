@@ -16,6 +16,7 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.security.*;
 import java.security.spec.InvalidKeySpecException;
+import java.util.ArrayList;
 
 public class Helpers {
     private static final char[] HEX_ARRAY = "0123456789ABCDEF".toCharArray();
@@ -85,5 +86,32 @@ public class Helpers {
         ECPublicKeySpec pubSpec = new ECPublicKeySpec(point, ecSpec);
         return (ECPublicKey) keyFactory.generatePublic(pubSpec);
 
+    }
+
+
+    static BigInteger div(BigInteger a, BigInteger b, BigInteger curve) {
+        BigInteger inverse = b.modInverse(curve);
+        return a.multiply(inverse).mod(curve);
+    }
+
+    static BigInteger lambda_coeff(BigInteger id_i, BigInteger[] selected_ids, ECParameterSpec params) {
+        ArrayList<BigInteger> ids = new ArrayList<>();
+        for (BigInteger selected_id : selected_ids) {
+            if (!selected_id.equals(id_i))
+                ids.add(selected_id);
+        }
+        if (ids.isEmpty())
+            return new BigInteger("1");
+        // modular arithmetic
+        // subtraction = subtracts b from a modulo order
+        // addition = add a and b modulo order
+        // true division = ( b modInverse order multiplied by a ) modulo order = a/b
+        // result = ids[0] * inverse( (ids[0] - id_i) mod order ) mod order
+        BigInteger result = div(ids.get(0), ids.get(0).subtract(id_i).mod(params.getCurve().getOrder()), params.getCurve().getOrder());
+
+        for (int i = 1; i < ids.size(); i++) {
+            result = result.multiply(div(ids.get(i), ids.get(i).subtract(id_i).mod(params.getCurve().getOrder()), params.getCurve().getOrder())).mod(params.getCurve().getOrder());
+        }
+        return result;
     }
 }

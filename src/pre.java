@@ -3,13 +3,12 @@ import org.bouncycastle.jce.interfaces.ECPublicKey;
 import org.bouncycastle.jce.spec.ECParameterSpec;
 import org.bouncycastle.math.ec.ECPoint;
 
-import javax.crypto.BadPaddingException;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
-import java.security.*;
+import java.security.GeneralSecurityException;
+import java.security.SecureRandom;
+import java.security.Signature;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.logging.Logger;
@@ -63,65 +62,72 @@ public class pre {
         return new SimpleEntry<>(ciphertext, capsule);
     }
 
-    private static byte[] _decap_reencrypted(ECPrivateKey receiving, Capsule capsule, int key_length) {
-        /*
-            params = capsule.params
-
-            pub_key = receiving_privkey.get_pubkey().point_key
-            priv_key = receiving_privkey.bn_key
-
-            precursor = capsule.first_cfrag().point_precursor
-            dh_point = priv_key * precursor
-
-            # Combination of CFrags via Shamir's Secret Sharing reconstruction
-            xs = list()
-            for cfrag in capsule._attached_cfrags:
-                x = hash_to_curvebn(precursor,
-                                    pub_key,
-                                    dh_point,
-                                    bytes(constants.X_COORDINATE),
-                                    cfrag.kfrag_id,
-                                    params=params)
-                xs.append(x)
-
-            e_summands, v_summands = list(), list()
-            for cfrag, x in zip(capsule._attached_cfrags, xs):
-                if precursor != cfrag.point_precursor:
-                    raise ValueError("Attached CFrags are not pairwise consistent")
-                lambda_i = lambda_coeff(x, xs)
-                e_summands.append(lambda_i * cfrag.point_e1)
-                v_summands.append(lambda_i * cfrag.point_v1)
-
-            e_prime = sum(e_summands[1:], e_summands[0])
-            v_prime = sum(v_summands[1:], v_summands[0])
-
-            # Secret value 'd' allows to make Umbral non-interactive
-            d = hash_to_curvebn(precursor,
-                                pub_key,
-                                dh_point,
-                                bytes(constants.NON_INTERACTIVE),
-                                params=params)
-
-            e, v, s = capsule.components()
-            h = hash_to_curvebn(e, v, params=params)
-
-            orig_pub_key = capsule.get_correctness_keys()['delegating'].point_key  # type: ignore
-
-            if not (s / d) * orig_pub_key == (h * e_prime) + v_prime:
-                // not enuf cfrag...
-
-            shared_key = d * (e_prime + v_prime)
-            encapsulated_key = kdf(shared_key, key_length)
-            return encapsulated_key
-         */
-        return null;
+    private static byte[] _open_capsule(ECPrivateKey receiving, Capsule capsule, int key_length, boolean check_proof) throws GeneralSecurityException, IOException {
+        if (check_proof) {
+            ArrayList<cFrag> bad_cfrag = new ArrayList<>();
+            for (cFrag cfrag : capsule._attached_cfag) {
+                if (!cfrag.verify_correctness(capsule))
+                    bad_cfrag.add(cfrag);
+            }
+            if (bad_cfrag.size() != 0) {
+                throw new GeneralSecurityException("Some cFrags are invalid");
+            }
+        }
+        return _decap_reencrypted(receiving, capsule, key_length);
     }
 
-    public static byte[] decrypt(byte[] cipher_text, Capsule capsule, ECPrivateKey decryption_key, boolean check_proof) throws IOException, NoSuchPaddingException, InvalidKeyException, NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException {
-        byte[] key = new byte[0];
+    private static byte[] _decap_reencrypted(ECPrivateKey receiving, Capsule capsule, int key_length) throws GeneralSecurityException {
+        ECParameterSpec params = capsule.params;
+        ECPoint publicKey = Helpers.getPublicKey(receiving).getQ();
+        BigInteger privateKey = receiving.getD();
+
+        ECPoint precursor = capsule.first_cfrag().precursor;
+        ECPoint dh_point = precursor.multiply(privateKey);
+        ArrayList<BigInteger> xs = new ArrayList<>();
+        for (cFrag cFrag : capsule._attached_cfag) {
+            xs.add(RandomOracle.hash2curve(new byte[][]{precursor.getEncoded(true), publicKey.getEncoded(true), dh_point.getEncoded(true), RandomOracle.getStringHash("X_COORDINATE"), cFrag.kfrag_id}, params));
+        }
+        ArrayList<ECPoint> e_sum = new ArrayList<>();
+        ArrayList<ECPoint> v_sum = new ArrayList<>();
+
+        for (int i = 0; i < xs.size(); i++) {
+            cFrag cfrag = capsule._attached_cfag.get(i);
+            BigInteger x = xs.get(i);
+            if (!precursor.equals(capsule._attached_cfag.get(i).precursor))
+                throw new GeneralSecurityException("Attached CFrags not pairwise consistent");
+            BigInteger lambda_i = Helpers.lambda_coeff(x, xs.toArray(new BigInteger[0]), params);
+
+            e_sum.add(cfrag.e1.multiply(lambda_i));
+            v_sum.add(cfrag.v1.multiply(lambda_i));
+        }
+        ECPoint e_prime = e_sum.get(0);
+        ECPoint v_prime = v_sum.get(0);
+        for (int j = 1; j < e_sum.size(); j++) {
+            e_prime.add(e_sum.get(j));
+            v_prime.add(v_sum.get(j));
+        }
+        BigInteger d = RandomOracle.hash2curve(new byte[][]{precursor.getEncoded(true), publicKey.getEncoded(true), dh_point.getEncoded(true), RandomOracle.getStringHash("NON_INTERACTIVE")}, params);
+        ECPoint e = capsule.point_e;
+        ECPoint v = capsule.point_v;
+        BigInteger s = capsule.signaure;
+        BigInteger h = RandomOracle.hash2curve(new byte[][]{e.getEncoded(true), v.getEncoded(true)}, params);
+
+        ECPoint original_pub = capsule.correctness_key.get("delegating").getQ();
+
+        if (!original_pub.multiply(Helpers.div(s, d, params.getCurve().getOrder())).equals(v_prime.add(e_prime.multiply(h))))
+            throw new SecurityException("Failed to get key, not enough kfrags");
+
+        ECPoint shared_key = e_prime.add(v_prime).multiply(d);
+        return RandomOracle.kdf(shared_key.getEncoded(true), key_length, null, null);
+    }
+
+    public static byte[] decrypt(byte[] cipher_text, Capsule capsule, ECPrivateKey decryption_key, boolean check_proof) throws IOException, GeneralSecurityException {
+        byte[] key;
+        if (capsule.not_valid())
+            throw new GeneralSecurityException("Capsule Verification Failed. Capsule tampered.");
+
         if (capsule._attached_cfag.size() != 0)
-            // implement decryption for Bob
-            ;
+            key = _open_capsule(decryption_key, capsule, 32, true);
         else {
             // decryption for alice
             byte[] shared_key = capsule.point_e.add(capsule.point_v).multiply(decryption_key.getD()).getEncoded(true);
@@ -151,13 +157,13 @@ public class pre {
         ECPoint precursor = g.multiply(precursorPrivate.getD());
         // compute shared dh key
         ECPoint dh_point = bob_pubkey_point.multiply(precursorPrivate.getD());
-        byte[][] input_d = {precursor.getEncoded(true),bob_pubkey_point.getEncoded(true), dh_point.getEncoded(true), RandomOracle.getStringHash("NON_INTERACTIVE")};
+        byte[][] input_d = {precursor.getEncoded(true), bob_pubkey_point.getEncoded(true), dh_point.getEncoded(true), RandomOracle.getStringHash("NON_INTERACTIVE")};
         BigInteger d = RandomOracle.hash2curve(input_d, precursorPrivate.getParameters());
 
         ArrayList<BigInteger> coefficients = new ArrayList<>();
         coefficients.add(delegating_privkey.getD().multiply(d.modInverse(params.getCurve().getOrder())).mod(params.getCurve().getOrder()));
 
-        for (int i = 0; i < threshold-1; i++) {
+        for (int i = 0; i < threshold - 1; i++) {
             coefficients.add(Helpers.getRandomPrivateKey().getD());
         }
 
@@ -178,9 +184,9 @@ public class pre {
 
             BigInteger share_index = RandomOracle.hash2curve(
                     new byte[][]{precursor.getEncoded(true),
-                    bob_pubkey_point.getEncoded(true),
-                    dh_point.getEncoded(true),
-                    RandomOracle.getStringHash("X_COORDINATE"), kfrag_id },
+                            bob_pubkey_point.getEncoded(true),
+                            dh_point.getEncoded(true),
+                            RandomOracle.getStringHash("X_COORDINATE"), kfrag_id},
                     params
             );
 
@@ -199,13 +205,12 @@ public class pre {
             j should be
             -2,-3,-4,-5
              */
-            BigInteger rk = coefficients.get(coefficients.size()-1);
-            for(int j=-2; j > (((coefficients.size())*-1)-1) ; j--)
-            {
-                rk = (rk.multiply(share_index).mod(params.getCurve().getOrder())).add(coefficients.get(coefficients.size()+j));
+            BigInteger rk = coefficients.get(coefficients.size() - 1);
+            for (int j = -2; j > (((coefficients.size()) * -1) - 1); j--) {
+                rk = (rk.multiply(share_index).mod(params.getCurve().getOrder())).add(coefficients.get(coefficients.size() + j));
             }
 
-            ECPoint commitment = RandomOracle.unsafeHash2Point(params.getG().getEncoded(true),"NuCypher/UmbralParameters/u".getBytes(), params).multiply(rk);
+            ECPoint commitment = RandomOracle.unsafeHash2Point(params.getG().getEncoded(true), "NuCypher/UmbralParameters/u".getBytes(), params).multiply(rk);
 
             ByteArrayOutputStream sign_bob = new ByteArrayOutputStream();
             try {
@@ -254,7 +259,7 @@ public class pre {
             ecdsaSign.update(sign_bob.toByteArray());
             byte[] signature_for_proxy = ecdsaSign.sign();
 
-            kfrags.add(new kFrag(kfrag_id,rk,commitment,precursor,signature_for_proxy,signature_for_bob,mode));
+            kfrags.add(new kFrag(kfrag_id, rk, commitment, precursor, signature_for_proxy, signature_for_bob, mode));
         }
         return kfrags;
     }

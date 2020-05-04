@@ -5,6 +5,7 @@ import org.bouncycastle.math.ec.ECPoint;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
+import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.HashMap;
 
@@ -16,11 +17,29 @@ public class Capsule {
     BigInteger signaure;
     HashMap<String, ECPublicKey> correctness_key;
     ArrayList<cFrag> _attached_cfag = new ArrayList<>();
+
     public Capsule(ECParameterSpec params, ECPoint point_e, ECPoint point_v, BigInteger signaure) {
         this.params = params;
         this.point_e = point_e;
         this.point_v = point_v;
         this.signaure = signaure;
+    }
+
+    public cFrag first_cfrag() throws GeneralSecurityException {
+        if (_attached_cfag.isEmpty())
+            throw new GeneralSecurityException("No Cfrags attached yet!");
+        return _attached_cfag.get(0);
+    }
+
+    public boolean not_valid() throws GeneralSecurityException {
+        /*
+        g = self.params.g
+        e, v, s = self.components()
+        h = hash_to_curvebn(e, v, params=self.params)\
+        g * s == v + (h * e)
+         */
+        BigInteger h = RandomOracle.hash2curve(new byte[][]{point_e.getEncoded(true), point_v.getEncoded(true)}, params);
+        return !params.getG().multiply(signaure).equals(point_v.add(point_e.multiply(h)));
     }
 
     public byte[] get_bytes() throws IOException {

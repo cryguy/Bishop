@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 class preTest {
 
     @org.junit.jupiter.api.Test
-    void generate_kfrag() {
+    void enc_decrypt_reencrypt() {
         fail();
     }
 
@@ -24,6 +24,7 @@ class preTest {
         ECPrivateKey alicePrivate = Helpers.getPrivateKey(aliceBigInt, Helpers.getRandomPrivateKey().getParameters()); // lazy...
         assert alicePrivate != null;
         AbstractMap.SimpleEntry<byte[], Capsule> encrypt = pre.encrypt(Helpers.getPublicKey(alicePrivate), "abc".getBytes());
+
         byte[] data = pre.decrypt(encrypt.getKey(), encrypt.getValue(), alicePrivate, true);
         assertEquals(Helpers.bytesToHex("abc".getBytes()), Helpers.bytesToHex(data));
     }
