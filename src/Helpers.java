@@ -7,7 +7,6 @@ import org.bouncycastle.jce.ECNamedCurveTable;
 import org.bouncycastle.jce.interfaces.ECPrivateKey;
 import org.bouncycastle.jce.interfaces.ECPublicKey;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.bouncycastle.jce.spec.ECNamedCurveParameterSpec;
 import org.bouncycastle.jce.spec.ECParameterSpec;
 import org.bouncycastle.jce.spec.ECPrivateKeySpec;
 import org.bouncycastle.jce.spec.ECPublicKeySpec;
@@ -17,7 +16,6 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.security.*;
 import java.security.spec.InvalidKeySpecException;
-import java.util.Enumeration;
 
 public class Helpers {
     private static final char[] HEX_ARRAY = "0123456789ABCDEF".toCharArray();
@@ -46,24 +44,6 @@ public class Helpers {
                     + Character.digit(s.charAt(i + 1), 16));
         }
         return data;
-    }
-
-    static String deriveCurveName(org.bouncycastle.jce.spec.ECParameterSpec ecParameterSpec) throws GeneralSecurityException {
-        for (@SuppressWarnings("rawtypes")
-             Enumeration names = ECNamedCurveTable.getNames(); names.hasMoreElements();){
-            final String name = (String)names.nextElement();
-
-            final ECNamedCurveParameterSpec params = ECNamedCurveTable.getParameterSpec(name);
-
-            if (params.getN().equals(ecParameterSpec.getN())
-                    && params.getH().equals(ecParameterSpec.getH())
-                    && params.getCurve().equals(ecParameterSpec.getCurve())
-                    && params.getG().equals(ecParameterSpec.getG())){
-                return name;
-            }
-        }
-
-        throw new GeneralSecurityException("Could not find name for curve");
     }
 
     static ECPrivateKey getPrivateKey(BigInteger secret, ECParameterSpec ecSpec) {

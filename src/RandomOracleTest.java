@@ -22,8 +22,13 @@ class RandomOracleTest {
     }
 
     @Test
-    void chacha20_poly() throws NoSuchPaddingException, InvalidKeyException, NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException, IOException {
-        assertEquals("b0403e1bc059b5aa339a27d7f8fd6f1eb939877504aaa93c7722768d85c8f1".toUpperCase(), Helpers.bytesToHex(RandomOracle.chacha20_poly(Helpers.hexStringToByteArray("b0403e1bc059b5aa339a27d7"), "abc".getBytes(), Helpers.hexStringToByteArray("e048c7cf69348da318fe21a3b307dab48716254ac0eb1c2c5e747b9fd60ec53c"), "shy".getBytes())));
+    void chacha20_poly_enc() throws NoSuchPaddingException, InvalidKeyException, NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException, IOException {
+        assertEquals("b0403e1bc059b5aa339a27d7f8fd6f1eb939877504aaa93c7722768d85c8f1".toUpperCase(), Helpers.bytesToHex(RandomOracle.chacha20_poly1305_enc(Helpers.hexStringToByteArray("b0403e1bc059b5aa339a27d7"), "abc".getBytes(), Helpers.hexStringToByteArray("e048c7cf69348da318fe21a3b307dab48716254ac0eb1c2c5e747b9fd60ec53c"), "shy".getBytes())));
+    }
+
+    @Test
+    void chacha20_poly_dec() throws NoSuchPaddingException, InvalidKeyException, NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException {
+        assertEquals(Helpers.bytesToHex("abc".getBytes()), Helpers.bytesToHex(RandomOracle.chacha20_poly1305_dec(Helpers.hexStringToByteArray("b0403e1bc059b5aa339a27d7f8fd6f1eb939877504aaa93c7722768d85c8f1"), Helpers.hexStringToByteArray("e048c7cf69348da318fe21a3b307dab48716254ac0eb1c2c5e747b9fd60ec53c"), "shy".getBytes())));
     }
 
     @Test

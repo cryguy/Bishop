@@ -26,19 +26,34 @@ public class RandomOracle {
         return Arrays.copyOfRange(messageDigest, 0, 8);
     }
 
-    static byte[] chacha20_poly(byte[] nounce, byte[] data, byte[] key, byte[] aditional) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException, IOException {
+    static byte[] chacha20_poly1305_enc(byte[] nounce, byte[] data, byte[] key, byte[] aditional) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException, IOException {
+        // init ChaCha20-Poly1305
         Cipher cipher = Cipher.getInstance("ChaCha20-Poly1305/None/NoPadding");
         AlgorithmParameterSpec ivParameterSpec = new IvParameterSpec(nounce);
         SecretKeySpec keySpec = new SecretKeySpec(key, "ChaCha20");
         cipher.init(Cipher.ENCRYPT_MODE, keySpec, ivParameterSpec);
-
+        // insert Authenticated Data
         cipher.updateAAD(aditional);
+
+        byte[] cipher_text = cipher.doFinal(data);
+
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         output.write(nounce);
-        output.write(cipher.doFinal(data));
+        output.write(cipher_text);
         return output.toByteArray();
     }
 
+    static byte[] chacha20_poly1305_dec(byte[] data, byte[] key, byte[] aditional) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
+        Cipher cipher = Cipher.getInstance("ChaCha20-Poly1305/None/NoPadding");
+        byte[] iv = Arrays.copyOfRange(data, 0, 12);
+        byte[] cipher_text = Arrays.copyOfRange(data, 12, data.length);
+        AlgorithmParameterSpec ivParameterSpec = new IvParameterSpec(iv);
+        SecretKeySpec keySpec = new SecretKeySpec(key, "ChaCha20");
+        cipher.init(Cipher.DECRYPT_MODE, keySpec, ivParameterSpec);
+        cipher.updateAAD(aditional);
+
+        return cipher.doFinal(cipher_text);
+    }
 
     static byte[] kdf(byte[] data, int key_length, byte[] salt, byte[] info) {
 

@@ -3,12 +3,13 @@ import org.bouncycastle.jce.interfaces.ECPublicKey;
 import org.bouncycastle.jce.spec.ECParameterSpec;
 import org.bouncycastle.math.ec.ECPoint;
 
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
-import java.security.GeneralSecurityException;
-import java.security.SecureRandom;
-import java.security.Signature;
+import java.security.*;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.logging.Logger;
@@ -34,19 +35,18 @@ public class pre {
 
         BigInteger h = RandomOracle.hash2curve(new byte[][]{pub_r.getEncoded(true), pub_u.getEncoded(true)}, params);
 
-
         BigInteger s = u.add(r.multiply(h).mod(params.getCurve().getOrder())).mod(params.getCurve().getOrder());
-
-        System.out.println("s " + Helpers.bytesToHex(s.toByteArray()));
 
         ECPoint shared = alice_pub.getQ().multiply(r.add(u).mod(params.getCurve().getOrder()));
 
         byte[] key = RandomOracle.kdf(shared.getEncoded(true), length, null, null);
 
-
+        Capsule capsule = new Capsule(params, pub_r, pub_u, s);
         //return key, Capsule(point_e=pub_r, point_v=pub_u, bn_sig=s, params=params)
-        return new SimpleEntry<>(key, new Capsule(params, pub_r, pub_u, s));
+        return new SimpleEntry<>(key, capsule);
     }
+
+    // TODO: Make a reencrypt function? or is this done serverside...
 
     public static SimpleEntry<byte[], Capsule> encrypt(ECPublicKey publicKey, byte[] plaintext) throws GeneralSecurityException, IOException {
         SimpleEntry<byte[], Capsule> key_cap = _encapsulate(publicKey, 32);
@@ -56,11 +56,79 @@ public class pre {
         byte[] capsule_bytes = capsule.get_bytes();
 
         // perform chacha-poly1305
-        byte[] nounce = new byte[32];
+        byte[] nounce = new byte[12];
         SecureRandom random = new SecureRandom();
         random.nextBytes(nounce);
+        byte[] ciphertext = RandomOracle.chacha20_poly1305_enc(nounce, plaintext, key, capsule_bytes);
+        return new SimpleEntry<>(ciphertext, capsule);
+    }
 
-        return new SimpleEntry<>(RandomOracle.chacha20_poly(nounce, plaintext, key, capsule_bytes), capsule);
+    private static byte[] _decap_reencrypted(ECPrivateKey receiving, Capsule capsule, int key_length) {
+        /*
+            params = capsule.params
+
+            pub_key = receiving_privkey.get_pubkey().point_key
+            priv_key = receiving_privkey.bn_key
+
+            precursor = capsule.first_cfrag().point_precursor
+            dh_point = priv_key * precursor
+
+            # Combination of CFrags via Shamir's Secret Sharing reconstruction
+            xs = list()
+            for cfrag in capsule._attached_cfrags:
+                x = hash_to_curvebn(precursor,
+                                    pub_key,
+                                    dh_point,
+                                    bytes(constants.X_COORDINATE),
+                                    cfrag.kfrag_id,
+                                    params=params)
+                xs.append(x)
+
+            e_summands, v_summands = list(), list()
+            for cfrag, x in zip(capsule._attached_cfrags, xs):
+                if precursor != cfrag.point_precursor:
+                    raise ValueError("Attached CFrags are not pairwise consistent")
+                lambda_i = lambda_coeff(x, xs)
+                e_summands.append(lambda_i * cfrag.point_e1)
+                v_summands.append(lambda_i * cfrag.point_v1)
+
+            e_prime = sum(e_summands[1:], e_summands[0])
+            v_prime = sum(v_summands[1:], v_summands[0])
+
+            # Secret value 'd' allows to make Umbral non-interactive
+            d = hash_to_curvebn(precursor,
+                                pub_key,
+                                dh_point,
+                                bytes(constants.NON_INTERACTIVE),
+                                params=params)
+
+            e, v, s = capsule.components()
+            h = hash_to_curvebn(e, v, params=params)
+
+            orig_pub_key = capsule.get_correctness_keys()['delegating'].point_key  # type: ignore
+
+            if not (s / d) * orig_pub_key == (h * e_prime) + v_prime:
+                // not enuf cfrag...
+
+            shared_key = d * (e_prime + v_prime)
+            encapsulated_key = kdf(shared_key, key_length)
+            return encapsulated_key
+         */
+        return null;
+    }
+
+    public static byte[] decrypt(byte[] cipher_text, Capsule capsule, ECPrivateKey decryption_key, boolean check_proof) throws IOException, NoSuchPaddingException, InvalidKeyException, NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException {
+        byte[] key = new byte[0];
+        if (capsule._attached_cfag.size() != 0)
+            // implement decryption for Bob
+            ;
+        else {
+            // decryption for alice
+            byte[] shared_key = capsule.point_e.add(capsule.point_v).multiply(decryption_key.getD()).getEncoded(true);
+            key = RandomOracle.kdf(shared_key, 32, null, null);
+        }
+
+        return RandomOracle.chacha20_poly1305_dec(cipher_text, key, capsule.get_bytes());
     }
 
     public static ArrayList<kFrag> generate_kfrag(ECPrivateKey delegating_privkey, ECPublicKey receiving_pubkey, int threshold, int N, ECPrivateKey signer, boolean sign_delegating, boolean sign_receiving) throws GeneralSecurityException, IOException {
@@ -90,8 +158,8 @@ public class pre {
         coefficients.add(delegating_privkey.getD().multiply(d.modInverse(params.getCurve().getOrder())).mod(params.getCurve().getOrder()));
 
         for (int i = 0; i < threshold-1; i++) {
-            coefficients.add(Helpers.getRandomPrivateKey().getD())
-;        }
+            coefficients.add(Helpers.getRandomPrivateKey().getD());
+        }
 
         ArrayList<kFrag> kfrags = new ArrayList<>();
         SecureRandom random = new SecureRandom(); // may switch this out...
