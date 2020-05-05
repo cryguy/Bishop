@@ -47,19 +47,14 @@ public class Helpers {
         return data;
     }
 
-    static ECPrivateKey getPrivateKey(BigInteger secret, ECParameterSpec ecSpec) {
-        try {
-            KeyFactory keyFactory = KeyFactory.getInstance("ECDSA", "BC");
-            ECPrivateKeySpec privateKeySpec = new ECPrivateKeySpec(secret, ecSpec);
-            return (ECPrivateKey) keyFactory.generatePrivate(privateKeySpec);
-        } catch (NoSuchAlgorithmException | NoSuchProviderException | InvalidKeySpecException e) {
-            e.printStackTrace();
-            return null;
-        }
+    static ECPrivateKey getPrivateKey(BigInteger secret, ECParameterSpec ecSpec) throws InvalidKeySpecException, NoSuchProviderException, NoSuchAlgorithmException {
+        KeyFactory keyFactory = KeyFactory.getInstance("ECDSA", "BC");
+        ECPrivateKeySpec privateKeySpec = new ECPrivateKeySpec(secret, ecSpec);
+        return (ECPrivateKey) keyFactory.generatePrivate(privateKeySpec);
     }
 
     //keygen
-    static ECPrivateKey getRandomPrivateKey() {
+    static ECPrivateKey getRandomPrivateKey() throws InvalidKeySpecException, NoSuchAlgorithmException, NoSuchProviderException {
         Security.addProvider(new BouncyCastleProvider());
         ECKeyPairGenerator gen = new ECKeyPairGenerator();
         SecureRandom secureRandom = new SecureRandom();

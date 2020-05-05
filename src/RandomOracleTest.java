@@ -7,10 +7,8 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import java.io.IOException;
 import java.math.BigInteger;
-import java.security.GeneralSecurityException;
-import java.security.InvalidAlgorithmParameterException;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
+import java.security.*;
+import java.security.spec.InvalidKeySpecException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -45,7 +43,7 @@ class RandomOracleTest {
     }
 
     @Test
-    void unsafeHash2Point() throws IOException {
+    void unsafeHash2Point() throws IOException, InvalidKeySpecException, NoSuchAlgorithmException, NoSuchProviderException {
         BigInteger aliceBigInt = new BigInteger("43941d9fb0fbbae48838afc7fc2ba23c22bdde8bc18b3d745c7c90dfd34d3aa1", 16);
         ECPrivateKey alicePrivate = Helpers.getPrivateKey(aliceBigInt, Helpers.getRandomPrivateKey().getParameters());
         assert alicePrivate != null;

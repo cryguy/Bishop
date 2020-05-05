@@ -6,6 +6,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.security.*;
+import java.security.spec.InvalidKeySpecException;
 
 
 public class kFrag {
@@ -76,7 +77,7 @@ public class kFrag {
         return valid_kfrag && correct_commitment;
     }
 
-    public boolean verify_for_capsule(Capsule capsule) throws NoSuchAlgorithmException, SignatureException, NoSuchProviderException, InvalidKeyException, IOException {
+    public boolean verify_for_capsule(Capsule capsule) throws NoSuchAlgorithmException, SignatureException, NoSuchProviderException, InvalidKeyException, IOException, InvalidKeySpecException {
         return verify(capsule.correctness_key.get("verifying"), capsule.correctness_key.get("delegating"), capsule.correctness_key.get("receiving"), Helpers.getRandomPrivateKey().getParameters());
     }
 

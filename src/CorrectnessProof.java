@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.math.BigInteger;
 
 public class CorrectnessProof {
+    // TODO: implement deserialization
     ECPoint e2;
     ECPoint v2;
     ECPoint commitment;
