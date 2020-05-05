@@ -51,7 +51,6 @@ public class RandomOracle {
         SecretKeySpec keySpec = new SecretKeySpec(key, "ChaCha20");
         cipher.init(Cipher.DECRYPT_MODE, keySpec, ivParameterSpec);
         cipher.updateAAD(aditional);
-
         return cipher.doFinal(cipher_text);
     }
 
@@ -89,6 +88,7 @@ public class RandomOracle {
         }
 
         byte[] hash = blake2b.digest();
+
         BigInteger hash_digest = new BigInteger(Helpers.bytesToHex(hash), 16); // somehow if using the raw bytes here, some numbers will overflow to 0 causing the rest of the steps to be wrong
         if (hash_digest.signum() != 1) {
             throw new GeneralSecurityException("hash_digest is negative");

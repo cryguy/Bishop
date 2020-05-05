@@ -12,7 +12,6 @@ import java.util.Collections;
 import java.util.HashMap;
 
 public class cFrag {
-    // TODO: Implement cFrags
     ECPoint e1;
     ECPoint v1;
     byte[] kfrag_id;
@@ -126,7 +125,8 @@ public class cFrag {
 
         Signature ecdsaSign = Signature.getInstance("SHA256withECDSA", "BC");
         ecdsaSign.initVerify(signing_pubkey);
-        boolean valid_sig = ecdsaSign.verify(outputStream.toByteArray());
+        ecdsaSign.update(outputStream.toByteArray());
+        boolean valid_sig = ecdsaSign.verify(this.proof.signature);
 
         BigInteger z3 = proof.sig_key;
         boolean correct_e = e.multiply(z3).equals(e2.add(e1.multiply(h)));

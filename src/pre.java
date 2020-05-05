@@ -17,7 +17,7 @@ public class pre {
     private final static Logger LOGGER = Logger.getLogger(pre.class.getName());
 
     // re-keygen
-    public static ArrayList<kFrag> generate_kfrag(ECPrivateKey delegating_privkey, ECPublicKey receiving_pubkey, int threshold, int N, ECPrivateKey signer) throws GeneralSecurityException, IOException {
+    public static ArrayList<kFrag> generate_kfrag(ECPrivateKey delegating_privkey, ECPrivateKey signer, ECPublicKey receiving_pubkey, int threshold, int N) throws GeneralSecurityException, IOException {
         return generate_kfrag(delegating_privkey, receiving_pubkey, threshold, N, signer, true, true);
     }
 
@@ -36,6 +36,7 @@ public class pre {
 
         BigInteger s = u.add(r.multiply(h).mod(params.getCurve().getOrder())).mod(params.getCurve().getOrder());
 
+
         ECPoint shared = alice_pub.getQ().multiply(r.add(u).mod(params.getCurve().getOrder()));
 
         byte[] key = RandomOracle.kdf(shared.getEncoded(true), length, null, null);
@@ -44,8 +45,6 @@ public class pre {
         //return key, Capsule(point_e=pub_r, point_v=pub_u, bn_sig=s, params=params)
         return new SimpleEntry<>(key, capsule);
     }
-
-    // TODO: Make a reencrypt function? or is this done serverside...
 
     public static SimpleEntry<byte[], Capsule> encrypt(ECPublicKey publicKey, byte[] plaintext) throws GeneralSecurityException, IOException {
         SimpleEntry<byte[], Capsule> key_cap = _encapsulate(publicKey, 32);
@@ -62,7 +61,7 @@ public class pre {
         return new SimpleEntry<>(ciphertext, capsule);
     }
 
-    private static byte[] _open_capsule(ECPrivateKey receiving, Capsule capsule, int key_length, boolean check_proof) throws GeneralSecurityException, IOException {
+    private static byte[] _open_capsule(ECPrivateKey receiving, Capsule capsule, boolean check_proof) throws GeneralSecurityException, IOException {
         if (check_proof) {
             ArrayList<cFrag> bad_cfrag = new ArrayList<>();
             for (cFrag cfrag : capsule._attached_cfag) {
@@ -70,13 +69,13 @@ public class pre {
                     bad_cfrag.add(cfrag);
             }
             if (bad_cfrag.size() != 0) {
-                throw new GeneralSecurityException("Some cFrags are invalid");
+                throw new SecurityException("Some cFrags are invalid");
             }
         }
-        return _decap_reencrypted(receiving, capsule, key_length);
+        return _decap_reencrypted(receiving, capsule, 32);
     }
 
-    private static byte[] _decap_reencrypted(ECPrivateKey receiving, Capsule capsule, int key_length) throws GeneralSecurityException {
+    static byte[] _decap_reencrypted(ECPrivateKey receiving, Capsule capsule, int key_length) throws GeneralSecurityException {
         ECParameterSpec params = capsule.params;
         ECPoint publicKey = Helpers.getPublicKey(receiving).getQ();
         BigInteger privateKey = receiving.getD();
@@ -85,28 +84,42 @@ public class pre {
         ECPoint dh_point = precursor.multiply(privateKey);
         ArrayList<BigInteger> xs = new ArrayList<>();
         for (cFrag cFrag : capsule._attached_cfag) {
-            xs.add(RandomOracle.hash2curve(new byte[][]{precursor.getEncoded(true), publicKey.getEncoded(true), dh_point.getEncoded(true), RandomOracle.getStringHash("X_COORDINATE"), cFrag.kfrag_id}, params));
+            xs.add(RandomOracle.hash2curve(
+                    new byte[][]{precursor.getEncoded(true),
+                            publicKey.getEncoded(true),
+                            dh_point.getEncoded(true),
+                            RandomOracle.getStringHash("X_COORDINATE"),
+                            cFrag.kfrag_id},
+                    params));
         }
+
         ArrayList<ECPoint> e_sum = new ArrayList<>();
         ArrayList<ECPoint> v_sum = new ArrayList<>();
 
         for (int i = 0; i < xs.size(); i++) {
             cFrag cfrag = capsule._attached_cfag.get(i);
             BigInteger x = xs.get(i);
-            if (!precursor.equals(capsule._attached_cfag.get(i).precursor))
+            if (!precursor.equals(cfrag.precursor))
                 throw new GeneralSecurityException("Attached CFrags not pairwise consistent");
             BigInteger lambda_i = Helpers.lambda_coeff(x, xs.toArray(new BigInteger[0]), params);
 
             e_sum.add(cfrag.e1.multiply(lambda_i));
             v_sum.add(cfrag.v1.multiply(lambda_i));
         }
+
         ECPoint e_prime = e_sum.get(0);
         ECPoint v_prime = v_sum.get(0);
         for (int j = 1; j < e_sum.size(); j++) {
-            e_prime.add(e_sum.get(j));
-            v_prime.add(v_sum.get(j));
+            e_prime = e_prime.add(e_sum.get(j));
+            v_prime = v_prime.add(v_sum.get(j));
         }
-        BigInteger d = RandomOracle.hash2curve(new byte[][]{precursor.getEncoded(true), publicKey.getEncoded(true), dh_point.getEncoded(true), RandomOracle.getStringHash("NON_INTERACTIVE")}, params);
+
+        BigInteger d = RandomOracle.hash2curve(new byte[][]{precursor.getEncoded(true),
+                        publicKey.getEncoded(true),
+                        dh_point.getEncoded(true),
+                        RandomOracle.getStringHash("NON_INTERACTIVE")}
+                , params);
+
         ECPoint e = capsule.point_e;
         ECPoint v = capsule.point_v;
         BigInteger s = capsule.signaure;
@@ -121,13 +134,33 @@ public class pre {
         return RandomOracle.kdf(shared_key.getEncoded(true), key_length, null, null);
     }
 
+    public static cFrag reencrypt(kFrag kfrag, Capsule capsule, boolean provide_proof, byte[] metadata, boolean verify_kfrag) throws GeneralSecurityException, IOException {
+        if (capsule.not_valid())
+            throw new GeneralSecurityException("Capsule Verification Failed. Capsule tampered.");
+        if (verify_kfrag)
+            if (kfrag.verify_for_capsule(capsule))
+                throw new GeneralSecurityException("Invalid kFrag!");
+
+        BigInteger rk = kfrag.bn_key;
+
+        ECPoint e1 = capsule.point_e.multiply(rk);
+        ECPoint v1 = capsule.point_v.multiply(rk);
+
+        cFrag cfrag = new cFrag(e1, v1, kfrag.identifier, kfrag.point_precursor);
+
+        if (provide_proof) {
+            cfrag.proof_correctness(capsule, kfrag, metadata);
+        }
+        return cfrag;
+    }
+
     public static byte[] decrypt(byte[] cipher_text, Capsule capsule, ECPrivateKey decryption_key, boolean check_proof) throws IOException, GeneralSecurityException {
         byte[] key;
         if (capsule.not_valid())
             throw new GeneralSecurityException("Capsule Verification Failed. Capsule tampered.");
 
         if (capsule._attached_cfag.size() != 0)
-            key = _open_capsule(decryption_key, capsule, 32, true);
+            key = _open_capsule(decryption_key, capsule, true);
         else {
             // decryption for alice
             byte[] shared_key = capsule.point_e.add(capsule.point_v).multiply(decryption_key.getD()).getEncoded(true);
@@ -137,6 +170,7 @@ public class pre {
         return RandomOracle.chacha20_poly1305_dec(cipher_text, key, capsule.get_bytes());
     }
 
+    // verified this part
     public static ArrayList<kFrag> generate_kfrag(ECPrivateKey delegating_privkey, ECPublicKey receiving_pubkey, int threshold, int N, ECPrivateKey signer, boolean sign_delegating, boolean sign_receiving) throws GeneralSecurityException, IOException {
 
         if (threshold <= 0 || threshold > N)
@@ -157,11 +191,14 @@ public class pre {
         ECPoint precursor = g.multiply(precursorPrivate.getD());
         // compute shared dh key
         ECPoint dh_point = bob_pubkey_point.multiply(precursorPrivate.getD());
+
         byte[][] input_d = {precursor.getEncoded(true), bob_pubkey_point.getEncoded(true), dh_point.getEncoded(true), RandomOracle.getStringHash("NON_INTERACTIVE")};
         BigInteger d = RandomOracle.hash2curve(input_d, precursorPrivate.getParameters());
 
         ArrayList<BigInteger> coefficients = new ArrayList<>();
-        coefficients.add(delegating_privkey.getD().multiply(d.modInverse(params.getCurve().getOrder())).mod(params.getCurve().getOrder()));
+
+        BigInteger inverse_d = d.modInverse(params.getCurve().getOrder());
+        coefficients.add(Helpers.multiply(delegating_privkey.getD(), inverse_d, params.getCurve().getOrder()));
 
         for (int i = 0; i < threshold - 1; i++) {
             coefficients.add(Helpers.getRandomPrivateKey().getD());
@@ -174,93 +211,74 @@ public class pre {
         for (int i = 0; i < N; i++) {
             byte[] kfrag_id = new byte[32];
             random.nextBytes(kfrag_id);
-
-            // share_index = hash_to_curvebn(precursor,
-            //                              bob_pubkey_point,
-            //                              dh_point,
-            //                              bytes(constants.X_COORDINATE),
-            //                              kfrag_id,
-            //                              params=params)
-
-            BigInteger share_index = RandomOracle.hash2curve(
-                    new byte[][]{precursor.getEncoded(true),
-                            bob_pubkey_point.getEncoded(true),
-                            dh_point.getEncoded(true),
-                            RandomOracle.getStringHash("X_COORDINATE"), kfrag_id},
-                    params
-            );
-
-
-            // The re-encryption key share is the result of evaluating the generating
-            // polynomial for the index value
-            /*
-
-                result = coeff[-1]
-                for i in range(-2, -len(coeff) - 1, -1):
-                    result = (result * x) + coeff[i]
-                return result
-             */
-            // if size is 5
-            /*
-            j should be
-            -2,-3,-4,-5
-             */
-            BigInteger rk = coefficients.get(coefficients.size() - 1);
-            for (int j = -2; j > (((coefficients.size()) * -1) - 1); j--) {
-                rk = (rk.multiply(share_index).mod(params.getCurve().getOrder())).add(coefficients.get(coefficients.size() + j));
-            }
-
-            ECPoint commitment = RandomOracle.unsafeHash2Point(params.getG().getEncoded(true), "NuCypher/UmbralParameters/u".getBytes(), params).multiply(rk);
-
-            ByteArrayOutputStream sign_bob = new ByteArrayOutputStream();
-            try {
-                sign_bob.write(kfrag_id);
-                assert delegating_pubkey != null;
-                sign_bob.write(delegating_pubkey.getEncoded());
-                sign_bob.write(receiving_pubkey.getEncoded());
-                sign_bob.write(commitment.getEncoded(true));
-                sign_bob.write(precursor.getEncoded(true));
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            // sign message for bob
-            Signature ecdsaSign = Signature.getInstance("SHA256withECDSA", "BC");
-            ecdsaSign.initSign(signer);
-
-            ecdsaSign.update(sign_bob.toByteArray());
-            byte[] signature_for_bob = ecdsaSign.sign();
-
-            byte mode;
-            if (sign_delegating && sign_receiving)
-                mode = kFrag.DELEGATING_AND_RECEIVING;
-            else if (sign_delegating)
-                mode = kFrag.DELEGATING_ONLY;
-            else if (sign_receiving)
-                mode = kFrag.RECEIVING_ONLY;
-            else
-                mode = kFrag.NO_KEY;
-
-            ByteArrayOutputStream sign_proxy = new ByteArrayOutputStream();
-            try {
-                sign_proxy.write(kfrag_id);
-                sign_proxy.write(commitment.getEncoded(true));
-                sign_proxy.write(precursor.getEncoded(true));
-                sign_proxy.write(mode);
-                if (sign_delegating) {
-                    assert delegating_pubkey != null;
-                    sign_proxy.write(delegating_pubkey.getEncoded());
-                }
-                if (sign_receiving)
-                    sign_proxy.write(receiving_pubkey.getEncoded());
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-
-            ecdsaSign.update(sign_bob.toByteArray());
-            byte[] signature_for_proxy = ecdsaSign.sign();
-
-            kfrags.add(new kFrag(kfrag_id, rk, commitment, precursor, signature_for_proxy, signature_for_bob, mode));
+            // tested bellow...
+            kFrag kfrag = getkFrag(receiving_pubkey, signer, sign_delegating, sign_receiving, params, delegating_pubkey, bob_pubkey_point, precursor, dh_point, coefficients, kfrag_id);
+            kfrags.add(kfrag);
         }
         return kfrags;
+    }
+
+    public static kFrag getkFrag(ECPublicKey receiving_pubkey, ECPrivateKey signer, boolean sign_delegating, boolean sign_receiving, ECParameterSpec params, ECPublicKey delegating_pubkey, ECPoint bob_pubkey_point, ECPoint precursor, ECPoint dh_point, ArrayList<BigInteger> coefficients, byte[] kfrag_id) throws GeneralSecurityException, IOException {
+
+        BigInteger share_index = RandomOracle.hash2curve(
+                new byte[][]{precursor.getEncoded(true),
+                        bob_pubkey_point.getEncoded(true),
+                        dh_point.getEncoded(true),
+                        RandomOracle.getStringHash("X_COORDINATE"), kfrag_id},
+                params
+        );
+
+        //
+        BigInteger rk = Helpers.poly_eval(coefficients.toArray(new BigInteger[0]), share_index, params.getCurve().getOrder());
+
+        ECPoint commitment = RandomOracle.unsafeHash2Point(params.getG().getEncoded(true), "NuCypher/UmbralParameters/u".getBytes(), params).multiply(rk);
+
+        ByteArrayOutputStream sign_bob = new ByteArrayOutputStream();
+        try {
+            sign_bob.write(kfrag_id);
+            assert delegating_pubkey != null;
+            sign_bob.write(delegating_pubkey.getEncoded());
+            sign_bob.write(receiving_pubkey.getEncoded());
+            sign_bob.write(commitment.getEncoded(true));
+            sign_bob.write(precursor.getEncoded(true));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        // sign message for bob
+        Signature ecdsaSign = Signature.getInstance("SHA256withECDSA", "BC");
+        ecdsaSign.initSign(signer);
+
+        ecdsaSign.update(sign_bob.toByteArray());
+        byte[] signature_for_bob = ecdsaSign.sign();
+
+        byte mode;
+        if (sign_delegating && sign_receiving)
+            mode = kFrag.DELEGATING_AND_RECEIVING;
+        else if (sign_delegating)
+            mode = kFrag.DELEGATING_ONLY;
+        else if (sign_receiving)
+            mode = kFrag.RECEIVING_ONLY;
+        else
+            mode = kFrag.NO_KEY;
+
+        ByteArrayOutputStream sign_proxy = new ByteArrayOutputStream();
+        try {
+            sign_proxy.write(kfrag_id);
+            sign_proxy.write(commitment.getEncoded(true));
+            sign_proxy.write(precursor.getEncoded(true));
+            sign_proxy.write(mode);
+            if (sign_delegating) {
+                assert delegating_pubkey != null;
+                sign_proxy.write(delegating_pubkey.getEncoded());
+            }
+            if (sign_receiving)
+                sign_proxy.write(receiving_pubkey.getEncoded());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        ecdsaSign.update(sign_bob.toByteArray());
+        byte[] signature_for_proxy = ecdsaSign.sign();
+        return new kFrag(kfrag_id, rk, commitment, precursor, signature_for_proxy, signature_for_bob, mode);
     }
 }

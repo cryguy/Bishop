@@ -10,12 +10,12 @@ import java.util.ArrayList;
 import java.util.HashMap;
 
 public class Capsule {
-
+    // TODO: From Bytes
     ECParameterSpec params;
     ECPoint point_e;
     ECPoint point_v;
     BigInteger signaure;
-    HashMap<String, ECPublicKey> correctness_key;
+    HashMap<String, ECPublicKey> correctness_key = new HashMap<>();
     ArrayList<cFrag> _attached_cfag = new ArrayList<>();
 
     public Capsule(ECParameterSpec params, ECPoint point_e, ECPoint point_v, BigInteger signaure) {
@@ -29,6 +29,19 @@ public class Capsule {
         if (_attached_cfag.isEmpty())
             throw new GeneralSecurityException("No Cfrags attached yet!");
         return _attached_cfag.get(0);
+    }
+
+    public void set_correctness_key(ECPublicKey alice_public, ECPublicKey bob_public, ECPublicKey alice_verifying) {
+        this.correctness_key.put("delegating", alice_public);
+        this.correctness_key.put("receiving", bob_public);
+        this.correctness_key.put("verifying", alice_verifying);
+    }
+
+    public void attach_cfrag(cFrag cfrag) throws GeneralSecurityException, IOException {
+        if (cfrag.verify_correctness(this))
+            this._attached_cfag.add(cfrag);
+        else
+            throw new SecurityException("cFrag is not correct! Cant be attached");
     }
 
     public boolean not_valid() throws GeneralSecurityException {

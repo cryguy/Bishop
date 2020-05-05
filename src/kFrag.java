@@ -1,6 +1,12 @@
+import org.bouncycastle.jce.interfaces.ECPublicKey;
+import org.bouncycastle.jce.spec.ECParameterSpec;
 import org.bouncycastle.math.ec.ECPoint;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.math.BigInteger;
+import java.security.*;
+
 
 public class kFrag {
 
@@ -17,9 +23,11 @@ public class kFrag {
     byte[] signature_for_proxy;
     byte[] signature_for_bob;
     byte key_in_signature;
+
     public kFrag(byte[] identifier, BigInteger bn_key, ECPoint point_commitment, ECPoint point_precursor, byte[] signature_for_proxy, byte[] signature_for_bob) {
         this(identifier,bn_key,point_commitment,point_precursor,signature_for_proxy,signature_for_bob,DELEGATING_AND_RECEIVING);
     }
+
     public kFrag(byte[] identifier, BigInteger bn_key, ECPoint point_commitment, ECPoint point_precursor, byte[] signature_for_proxy, byte[] signature_for_bob, byte key_in_signature) {
         this.identifier = identifier;
         this.bn_key = bn_key;
@@ -41,9 +49,43 @@ public class kFrag {
         //        self.signature_for_proxy --> 2 bn_size
         //        self.signature_for_bob --> 2 bn_size
         //        self.keys_in_signature --> 1
-        return (bn_size*6) + (point_size*2) + 1;
+        return (bn_size * 6) + (point_size * 2) + 1;
     }
 
+    private boolean verify(ECPublicKey signing_pubkey, ECPublicKey delegating_pubkey, ECPublicKey receiving_pubkey, ECParameterSpec params) throws IOException, NoSuchProviderException, NoSuchAlgorithmException, InvalidKeyException, SignatureException {
+        ECPoint u = RandomOracle.unsafeHash2Point(params.getG().getEncoded(true), "NuCypher/UmbralParameters/u".getBytes(), params);
 
+        boolean correct_commitment = this.point_commitment.equals(u.multiply(this.bn_key));
+
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        outputStream.write(this.identifier);
+        outputStream.write(this.point_commitment.getEncoded(true));
+        outputStream.write(this.point_precursor.getEncoded(true));
+        outputStream.write(this.key_in_signature);
+
+        if (delegating_key_in_sig())
+            outputStream.write(delegating_pubkey.getEncoded());
+        if (receiving_key_in_sig())
+            outputStream.write(receiving_pubkey.getEncoded());
+        Signature ecdsaSign = Signature.getInstance("SHA256withECDSA", "BC");
+        ecdsaSign.initVerify(signing_pubkey);
+
+        ecdsaSign.update(outputStream.toByteArray());
+        boolean valid_kfrag = ecdsaSign.verify(signature_for_proxy);
+
+        return valid_kfrag && correct_commitment;
+    }
+
+    public boolean verify_for_capsule(Capsule capsule) throws NoSuchAlgorithmException, SignatureException, NoSuchProviderException, InvalidKeyException, IOException {
+        return verify(capsule.correctness_key.get("verifying"), capsule.correctness_key.get("delegating"), capsule.correctness_key.get("receiving"), Helpers.getRandomPrivateKey().getParameters());
+    }
+
+    boolean delegating_key_in_sig() {
+        return key_in_signature == DELEGATING_ONLY || key_in_signature == DELEGATING_AND_RECEIVING;
+    }
+
+    boolean receiving_key_in_sig() {
+        return key_in_signature == RECEIVING_ONLY || key_in_signature == DELEGATING_AND_RECEIVING;
+    }
 
 }

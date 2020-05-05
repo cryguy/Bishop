@@ -94,12 +94,34 @@ public class Helpers {
         return a.multiply(inverse).mod(curve);
     }
 
+    static BigInteger multiply(BigInteger a, BigInteger b, BigInteger curve) {
+        return a.multiply(b).mod(curve);
+    }
+
+    static BigInteger addition(BigInteger a, BigInteger b, BigInteger curve) {
+        return a.add(b).mod(curve);
+    }
+
+    static BigInteger poly_eval(BigInteger[] coeff, BigInteger x, BigInteger mod) {
+        BigInteger result = coeff[coeff.length - 1];
+
+        for (int i = 2; i < coeff.length + 1; i++) {
+            //result = result.multiply(x).mod(mod).add(coeff[coeff.length-i]).mod(mod);
+            // result = (result * x) + coeff[i]
+
+            result = addition(multiply(result, x, mod), coeff[coeff.length - i], mod);
+        }
+        return result;
+    }
+
+
     static BigInteger lambda_coeff(BigInteger id_i, BigInteger[] selected_ids, ECParameterSpec params) {
         ArrayList<BigInteger> ids = new ArrayList<>();
         for (BigInteger selected_id : selected_ids) {
             if (!selected_id.equals(id_i))
                 ids.add(selected_id);
         }
+
         if (ids.isEmpty())
             return new BigInteger("1");
         // modular arithmetic
