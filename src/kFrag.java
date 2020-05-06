@@ -1,3 +1,5 @@
+import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters;
+import org.bouncycastle.crypto.signers.Ed25519Signer;
 import org.bouncycastle.jce.interfaces.ECPublicKey;
 import org.bouncycastle.jce.spec.ECParameterSpec;
 import org.bouncycastle.math.ec.ECPoint;
@@ -6,7 +8,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.security.*;
-import java.security.spec.InvalidKeySpecException;
 
 
 public class kFrag {
@@ -53,7 +54,7 @@ public class kFrag {
         return (bn_size * 6) + (point_size * 2) + 1;
     }
 
-    private boolean verify(ECPublicKey signing_pubkey, ECPublicKey delegating_pubkey, ECPublicKey receiving_pubkey, ECParameterSpec params) throws IOException, NoSuchProviderException, NoSuchAlgorithmException, InvalidKeyException, SignatureException {
+    private boolean verify(Ed25519PublicKeyParameters signing_pubkey, ECPublicKey delegating_pubkey, ECPublicKey receiving_pubkey, ECParameterSpec params) throws IOException, NoSuchProviderException, NoSuchAlgorithmException, InvalidKeyException, SignatureException {
         ECPoint u = RandomOracle.unsafeHash2Point(params.getG().getEncoded(true), "NuCypher/UmbralParameters/u".getBytes(), params);
 
         boolean correct_commitment = this.point_commitment.equals(u.multiply(this.bn_key));
@@ -68,17 +69,19 @@ public class kFrag {
             outputStream.write(delegating_pubkey.getEncoded());
         if (receiving_key_in_sig())
             outputStream.write(receiving_pubkey.getEncoded());
-        Signature ecdsaSign = Signature.getInstance("SHA256withECDSA", "BC");
-        ecdsaSign.initVerify(signing_pubkey);
 
-        ecdsaSign.update(outputStream.toByteArray());
-        boolean valid_kfrag = ecdsaSign.verify(signature_for_proxy);
+        Ed25519Signer ed25519Signer = new Ed25519Signer();
+        ed25519Signer.init(false, signing_pubkey);
+        ed25519Signer.update(outputStream.toByteArray(), 0, outputStream.toByteArray().length);
+        ed25519Signer.verifySignature(signature_for_proxy);
+
+        boolean valid_kfrag = ed25519Signer.verifySignature(signature_for_proxy);
 
         return valid_kfrag && correct_commitment;
     }
 
-    public boolean verify_for_capsule(Capsule capsule) throws NoSuchAlgorithmException, SignatureException, NoSuchProviderException, InvalidKeyException, IOException, InvalidKeySpecException {
-        return verify(capsule.correctness_key.get("verifying"), capsule.correctness_key.get("delegating"), capsule.correctness_key.get("receiving"), Helpers.getRandomPrivateKey().getParameters());
+    public boolean verify_for_capsule(Capsule capsule) throws GeneralSecurityException, IOException {
+        return verify(capsule.verifying, capsule.correctness_key.get("delegating"), capsule.correctness_key.get("receiving"), capsule.params);
     }
 
     boolean delegating_key_in_sig() {

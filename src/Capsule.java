@@ -1,3 +1,4 @@
+import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters;
 import org.bouncycastle.jce.interfaces.ECPublicKey;
 import org.bouncycastle.jce.spec.ECParameterSpec;
 import org.bouncycastle.math.ec.ECPoint;
@@ -15,6 +16,7 @@ public class Capsule {
     ECPoint point_e;
     ECPoint point_v;
     BigInteger signaure;
+    Ed25519PublicKeyParameters verifying = null;
     HashMap<String, ECPublicKey> correctness_key = new HashMap<>();
     ArrayList<cFrag> _attached_cfag = new ArrayList<>();
 
@@ -31,10 +33,10 @@ public class Capsule {
         return _attached_cfag.get(0);
     }
 
-    public void set_correctness_key(ECPublicKey alice_public, ECPublicKey bob_public, ECPublicKey alice_verifying) {
+    public void set_correctness_key(ECPublicKey alice_public, ECPublicKey bob_public, Ed25519PublicKeyParameters alice_verifying) {
         this.correctness_key.put("delegating", alice_public);
         this.correctness_key.put("receiving", bob_public);
-        this.correctness_key.put("verifying", alice_verifying);
+        verifying = alice_verifying;
     }
 
     public void attach_cfrag(cFrag cfrag) throws GeneralSecurityException, IOException {

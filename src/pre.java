@@ -1,3 +1,5 @@
+import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters;
+import org.bouncycastle.crypto.signers.Ed25519Signer;
 import org.bouncycastle.jce.interfaces.ECPrivateKey;
 import org.bouncycastle.jce.interfaces.ECPublicKey;
 import org.bouncycastle.jce.spec.ECParameterSpec;
@@ -8,7 +10,6 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
-import java.security.Signature;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.logging.Logger;
@@ -17,7 +18,7 @@ public class pre {
     private final static Logger LOGGER = Logger.getLogger(pre.class.getName());
 
     // re-keygen
-    public static ArrayList<kFrag> generate_kfrag(ECPrivateKey delegating_privkey, ECPrivateKey signer, ECPublicKey receiving_pubkey, int threshold, int N) throws GeneralSecurityException, IOException {
+    public static ArrayList<kFrag> generate_kfrag(ECPrivateKey delegating_privkey, Ed25519PrivateKeyParameters signer, ECPublicKey receiving_pubkey, int threshold, int N) throws GeneralSecurityException, IOException {
         return generate_kfrag(delegating_privkey, receiving_pubkey, threshold, N, signer, true, true);
     }
 
@@ -171,7 +172,7 @@ public class pre {
     }
 
     // verified this part
-    public static ArrayList<kFrag> generate_kfrag(ECPrivateKey delegating_privkey, ECPublicKey receiving_pubkey, int threshold, int N, ECPrivateKey signer, boolean sign_delegating, boolean sign_receiving) throws GeneralSecurityException, IOException {
+    public static ArrayList<kFrag> generate_kfrag(ECPrivateKey delegating_privkey, ECPublicKey receiving_pubkey, int threshold, int N, Ed25519PrivateKeyParameters signer, boolean sign_delegating, boolean sign_receiving) throws GeneralSecurityException, IOException {
 
         if (threshold <= 0 || threshold > N)
             throw new IllegalArgumentException("Arguments threshold and N must satisfy 0 < threshold <= N");
@@ -218,7 +219,7 @@ public class pre {
         return kfrags;
     }
 
-    public static kFrag getkFrag(ECPublicKey receiving_pubkey, ECPrivateKey signer, boolean sign_delegating, boolean sign_receiving, ECParameterSpec params, ECPublicKey delegating_pubkey, ECPoint bob_pubkey_point, ECPoint precursor, ECPoint dh_point, ArrayList<BigInteger> coefficients, byte[] kfrag_id) throws GeneralSecurityException, IOException {
+    public static kFrag getkFrag(ECPublicKey receiving_pubkey, Ed25519PrivateKeyParameters signer, boolean sign_delegating, boolean sign_receiving, ECParameterSpec params, ECPublicKey delegating_pubkey, ECPoint bob_pubkey_point, ECPoint precursor, ECPoint dh_point, ArrayList<BigInteger> coefficients, byte[] kfrag_id) throws GeneralSecurityException, IOException {
 
         BigInteger share_index = RandomOracle.hash2curve(
                 new byte[][]{precursor.getEncoded(true),
@@ -245,11 +246,12 @@ public class pre {
             e.printStackTrace();
         }
         // sign message for bob
-        Signature ecdsaSign = Signature.getInstance("SHA256withECDSA", "BC");
-        ecdsaSign.initSign(signer);
+        Ed25519Signer ed25519Signer = new Ed25519Signer();
+        ed25519Signer.init(true, signer);
+        ed25519Signer.update(sign_bob.toByteArray(), 0, sign_bob.toByteArray().length);
 
-        ecdsaSign.update(sign_bob.toByteArray());
-        byte[] signature_for_bob = ecdsaSign.sign();
+        byte[] signature_for_bob = ed25519Signer.generateSignature();
+        ;
 
         byte mode;
         if (sign_delegating && sign_receiving)
@@ -277,8 +279,8 @@ public class pre {
             e.printStackTrace();
         }
 
-        ecdsaSign.update(sign_bob.toByteArray());
-        byte[] signature_for_proxy = ecdsaSign.sign();
+        ed25519Signer.update(sign_proxy.toByteArray(), 0, sign_proxy.toByteArray().length);
+        byte[] signature_for_proxy = ed25519Signer.generateSignature();
         return new kFrag(kfrag_id, rk, commitment, precursor, signature_for_proxy, signature_for_bob, mode);
     }
 }

@@ -1,3 +1,5 @@
+import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters;
+import org.bouncycastle.crypto.signers.Ed25519Signer;
 import org.bouncycastle.jce.interfaces.ECPublicKey;
 import org.bouncycastle.jce.spec.ECParameterSpec;
 import org.bouncycastle.math.ec.ECPoint;
@@ -6,7 +8,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.security.GeneralSecurityException;
-import java.security.Signature;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -84,7 +85,7 @@ public class cFrag {
         HashMap<String, ECPublicKey> correctness_key = capsule.correctness_key;
 
         ECPublicKey delegating_pubkey = correctness_key.get("delegating");
-        ECPublicKey signing_pubkey = correctness_key.get("verifying");
+        Ed25519PublicKeyParameters signing_pubkey = capsule.verifying;
         ECPublicKey receiving_pubkey = correctness_key.get("receiving");
 
         ECParameterSpec params = capsule.params;
@@ -122,11 +123,11 @@ public class cFrag {
         outputStream.write(receiving_pubkey.getEncoded());
         outputStream.write(u1.getEncoded(true));
         outputStream.write(precursor.getEncoded(true));
+        Ed25519Signer ed25519Signer = new Ed25519Signer();
+        ed25519Signer.init(false, signing_pubkey);
 
-        Signature ecdsaSign = Signature.getInstance("SHA256withECDSA", "BC");
-        ecdsaSign.initVerify(signing_pubkey);
-        ecdsaSign.update(outputStream.toByteArray());
-        boolean valid_sig = ecdsaSign.verify(this.proof.signature);
+        ed25519Signer.update(outputStream.toByteArray(), 0, outputStream.toByteArray().length);
+        boolean valid_sig = ed25519Signer.verifySignature(this.proof.signature);
 
         BigInteger z3 = proof.sig_key;
         boolean correct_e = e.multiply(z3).equals(e2.add(e1.multiply(h)));

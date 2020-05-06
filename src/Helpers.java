@@ -1,3 +1,4 @@
+
 import org.bouncycastle.crypto.AsymmetricCipherKeyPair;
 import org.bouncycastle.crypto.generators.ECKeyPairGenerator;
 import org.bouncycastle.crypto.params.ECDomainParameters;
@@ -20,6 +21,7 @@ import java.util.ArrayList;
 
 public class Helpers {
     private static final char[] HEX_ARRAY = "0123456789ABCDEF".toCharArray();
+
 
     static byte[] intToBytes( final int i ,final int length) {
         ByteBuffer bb = ByteBuffer.allocate(length);
@@ -47,15 +49,16 @@ public class Helpers {
         return data;
     }
 
-    static ECPrivateKey getPrivateKey(BigInteger secret, ECParameterSpec ecSpec) throws InvalidKeySpecException, NoSuchProviderException, NoSuchAlgorithmException {
-        KeyFactory keyFactory = KeyFactory.getInstance("ECDSA", "BC");
+    static ECPrivateKey getPrivateKey(BigInteger secret, ECParameterSpec ecSpec) throws InvalidKeySpecException, NoSuchAlgorithmException {
+        Security.addProvider(new BouncyCastleProvider());
+        KeyFactory keyFactory = KeyFactory.getInstance("EC");
         ECPrivateKeySpec privateKeySpec = new ECPrivateKeySpec(secret, ecSpec);
         return (ECPrivateKey) keyFactory.generatePrivate(privateKeySpec);
     }
 
     //keygen
     static ECPrivateKey getRandomPrivateKey() throws InvalidKeySpecException, NoSuchAlgorithmException, NoSuchProviderException {
-        Security.addProvider(new BouncyCastleProvider());
+
         ECKeyPairGenerator gen = new ECKeyPairGenerator();
         SecureRandom secureRandom = new SecureRandom();
         ECParameterSpec ecSpec = ECNamedCurveTable.getParameterSpec("secp256k1");
@@ -71,8 +74,8 @@ public class Helpers {
     static ECPublicKey getPublicKey(ECPrivateKey privateKey) throws GeneralSecurityException {
         Security.addProvider(new BouncyCastleProvider());
 
-        KeyFactory keyFactory = KeyFactory.getInstance("ECDSA", "BC");
-        ECParameterSpec ecSpec = ECNamedCurveTable.getParameterSpec("secp256k1");
+        KeyFactory keyFactory = KeyFactory.getInstance("EC");
+        ECParameterSpec ecSpec = privateKey.getParameters();
 
         ECPoint Q = ecSpec.getG().multiply(privateKey.getD());
         byte[] publicDerBytes = Q.getEncoded(false);
