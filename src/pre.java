@@ -18,11 +18,11 @@ public class pre {
     private final static Logger LOGGER = Logger.getLogger(pre.class.getName());
 
     // re-keygen
-    public static ArrayList<kFrag> generate_kfrag(ECPrivateKey delegating_privkey, Ed25519PrivateKeyParameters signer, ECPublicKey receiving_pubkey, int threshold, int N) throws GeneralSecurityException, IOException {
-        return generate_kfrag(delegating_privkey, receiving_pubkey, threshold, N, signer, true, true);
+    public static ArrayList<kFrag> generate_kfrag(ECPrivateKey delegating_privkey, Ed25519PrivateKeyParameters signer, ECPublicKey receiving_pubkey, int threshold, int N, byte[] metadata) throws GeneralSecurityException, IOException {
+        return generate_kfrag(delegating_privkey, receiving_pubkey, threshold, N, signer, true, true, metadata);
     }
 
-    public static SimpleEntry<byte[], Capsule> _encapsulate(ECPublicKey alice_pub, int length) throws GeneralSecurityException {
+    public static SimpleEntry<byte[], Capsule> _encapsulate(ECPublicKey alice_pub, int length, byte[] metadata) throws GeneralSecurityException, IOException {
 
         ECParameterSpec params = alice_pub.getParameters();
         ECPoint g = params.getG();
@@ -38,17 +38,30 @@ public class pre {
         BigInteger s = u.add(r.multiply(h).mod(params.getCurve().getOrder())).mod(params.getCurve().getOrder());
 
 
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        outputStream.write(pub_r.getEncoded(true));
+        outputStream.write(pub_u.getEncoded(true));
+
+
+        var hash = RandomOracle.kdf(outputStream.toByteArray(), 32, s.toByteArray(), metadata);
+
+
+        outputStream.reset();
         ECPoint shared = alice_pub.getQ().multiply(r.add(u).mod(params.getCurve().getOrder()));
 
-        byte[] key = RandomOracle.kdf(shared.getEncoded(true), length, null, null);
+        outputStream.write(shared.getEncoded(true));
+        if (metadata != null) {
+            outputStream.write(metadata);
+        }
+        byte[] key = RandomOracle.kdf(outputStream.toByteArray(), length, null, null);
 
-        Capsule capsule = new Capsule(params, pub_r, pub_u, s);
+        Capsule capsule = new Capsule(params, pub_r, pub_u, s, metadata, hash);
         //return key, Capsule(point_e=pub_r, point_v=pub_u, bn_sig=s, params=params)
         return new SimpleEntry<>(key, capsule);
     }
 
-    public static SimpleEntry<byte[], Capsule> encrypt(ECPublicKey publicKey, byte[] plaintext) throws GeneralSecurityException, IOException {
-        SimpleEntry<byte[], Capsule> key_cap = _encapsulate(publicKey, 32);
+    public static SimpleEntry<byte[], Capsule> encrypt(ECPublicKey publicKey, byte[] plaintext, byte[] metadata) throws GeneralSecurityException, IOException {
+        SimpleEntry<byte[], Capsule> key_cap = _encapsulate(publicKey, 32, metadata);
         byte[] key = key_cap.getKey();
         Capsule capsule = key_cap.getValue();
 
@@ -73,22 +86,22 @@ public class pre {
                 throw new SecurityException("Some cFrags are invalid");
             }
         }
-        return _decap_reencrypted(receiving, capsule, 32);
+        return _decap_reencrypted(receiving, capsule, 32, capsule.metadata);
     }
 
-    static byte[] _decap_reencrypted(ECPrivateKey receiving, Capsule capsule, int key_length) throws GeneralSecurityException {
+    static byte[] _decap_reencrypted(ECPrivateKey receiving, Capsule capsule, int key_length, byte[] metadata) throws GeneralSecurityException, IOException {
         ECParameterSpec params = capsule.params;
         ECPoint publicKey = Helpers.getPublicKey(receiving).getQ();
-        BigInteger privateKey = receiving.getD();
 
-        ECPoint precursor = capsule.first_cfrag().precursor;
-        ECPoint dh_point = precursor.multiply(privateKey);
+        ECPublicKey precursor = capsule.first_cfrag().precursor;
+        var dh = Helpers.doECDH(receiving, precursor);
+        //ECPoint dh_point = precursor.multiply(privateKey);
         ArrayList<BigInteger> xs = new ArrayList<>();
         for (cFrag cFrag : capsule._attached_cfag) {
             xs.add(RandomOracle.hash2curve(
-                    new byte[][]{precursor.getEncoded(true),
+                    new byte[][]{precursor.getEncoded(),
                             publicKey.getEncoded(true),
-                            dh_point.getEncoded(true),
+                            dh,
                             RandomOracle.getStringHash("X_COORDINATE"),
                             cFrag.kfrag_id},
                     params));
@@ -115,9 +128,9 @@ public class pre {
             v_prime = v_prime.add(v_sum.get(j));
         }
 
-        BigInteger d = RandomOracle.hash2curve(new byte[][]{precursor.getEncoded(true),
+        BigInteger d = RandomOracle.hash2curve(new byte[][]{precursor.getEncoded(),
                         publicKey.getEncoded(true),
-                        dh_point.getEncoded(true),
+                        dh,
                         RandomOracle.getStringHash("NON_INTERACTIVE")}
                 , params);
 
@@ -129,10 +142,15 @@ public class pre {
         ECPoint original_pub = capsule.correctness_key.get("delegating").getQ();
 
         if (!original_pub.multiply(Helpers.div(s, d, params.getCurve().getOrder())).equals(v_prime.add(e_prime.multiply(h))))
-            throw new SecurityException("Failed to get key, not enough kfrags");
+            throw new GeneralSecurityException("Failed to get key, not enough kfrags");
 
         ECPoint shared_key = e_prime.add(v_prime).multiply(d);
-        return RandomOracle.kdf(shared_key.getEncoded(true), key_length, null, null);
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        outputStream.write(shared_key.getEncoded(true));
+        if (metadata != null) {
+            outputStream.write(metadata);
+        }
+        return RandomOracle.kdf(outputStream.toByteArray(), key_length, null, null);
     }
 
     public static cFrag reencrypt(kFrag kfrag, Capsule capsule, boolean provide_proof, byte[] metadata, boolean verify_kfrag) throws GeneralSecurityException, IOException {
@@ -164,15 +182,19 @@ public class pre {
             key = _open_capsule(decryption_key, capsule, true);
         else {
             // decryption for alice
-            byte[] shared_key = capsule.point_e.add(capsule.point_v).multiply(decryption_key.getD()).getEncoded(true);
-            key = RandomOracle.kdf(shared_key, 32, null, null);
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            outputStream.write(capsule.point_e.add(capsule.point_v).multiply(decryption_key.getD()).getEncoded(true));
+            if (capsule.metadata != null) {
+                outputStream.write(capsule.metadata);
+            }
+            key = RandomOracle.kdf(outputStream.toByteArray(), 32, null, null);
         }
 
         return RandomOracle.chacha20_poly1305_dec(cipher_text, key, capsule.get_bytes());
     }
 
     // verified this part
-    public static ArrayList<kFrag> generate_kfrag(ECPrivateKey delegating_privkey, ECPublicKey receiving_pubkey, int threshold, int N, Ed25519PrivateKeyParameters signer, boolean sign_delegating, boolean sign_receiving) throws GeneralSecurityException, IOException {
+    public static ArrayList<kFrag> generate_kfrag(ECPrivateKey delegating_privkey, ECPublicKey receiving_pubkey, int threshold, int N, Ed25519PrivateKeyParameters signer, boolean sign_delegating, boolean sign_receiving, byte[] metadata) throws GeneralSecurityException, IOException {
 
         if (threshold <= 0 || threshold > N)
             throw new IllegalArgumentException("Arguments threshold and N must satisfy 0 < threshold <= N");
@@ -187,13 +209,16 @@ public class pre {
         // generate a new key
         ECPrivateKey precursorPrivate = Helpers.getRandomPrivateKey();
 
+
         assert precursorPrivate != null;
         // compute XA = g^xA
-        ECPoint precursor = g.multiply(precursorPrivate.getD());
+        //ECPoint precursor = g.multiply(precursorPrivate.getD());
+        ECPublicKey precursor = Helpers.getPublicKey(precursorPrivate);
         // compute shared dh key
-        ECPoint dh_point = bob_pubkey_point.multiply(precursorPrivate.getD());
 
-        byte[][] input_d = {precursor.getEncoded(true), bob_pubkey_point.getEncoded(true), dh_point.getEncoded(true), RandomOracle.getStringHash("NON_INTERACTIVE")};
+        // ECPoint dh_point = bob_pubkey_point.multiply(precursorPrivate.getD());
+        var dh = Helpers.doECDH(precursorPrivate, receiving_pubkey);
+        byte[][] input_d = {precursor.getEncoded(), bob_pubkey_point.getEncoded(true), dh, RandomOracle.getStringHash("NON_INTERACTIVE")};
         BigInteger d = RandomOracle.hash2curve(input_d, precursorPrivate.getParameters());
 
         ArrayList<BigInteger> coefficients = new ArrayList<>();
@@ -213,37 +238,38 @@ public class pre {
             byte[] kfrag_id = new byte[32];
             random.nextBytes(kfrag_id);
             // tested bellow...
-            kFrag kfrag = getkFrag(receiving_pubkey, signer, sign_delegating, sign_receiving, params, delegating_pubkey, bob_pubkey_point, precursor, dh_point, coefficients, kfrag_id);
+            kFrag kfrag = getkFrag(receiving_pubkey, signer, sign_delegating, sign_receiving, params, delegating_pubkey, bob_pubkey_point, precursor, dh, coefficients, kfrag_id, metadata);
             kfrags.add(kfrag);
         }
         return kfrags;
     }
 
-    public static kFrag getkFrag(ECPublicKey receiving_pubkey, Ed25519PrivateKeyParameters signer, boolean sign_delegating, boolean sign_receiving, ECParameterSpec params, ECPublicKey delegating_pubkey, ECPoint bob_pubkey_point, ECPoint precursor, ECPoint dh_point, ArrayList<BigInteger> coefficients, byte[] kfrag_id) throws GeneralSecurityException, IOException {
+    public static kFrag getkFrag(ECPublicKey receiving_pubkey, Ed25519PrivateKeyParameters signer, boolean sign_delegating, boolean sign_receiving, ECParameterSpec params, ECPublicKey delegating_pubkey, ECPoint bob_pubkey_point, ECPublicKey precursor, byte[] dh, ArrayList<BigInteger> coefficients, byte[] kfrag_id, byte[] metadata) throws GeneralSecurityException, IOException {
 
         BigInteger share_index = RandomOracle.hash2curve(
-                new byte[][]{precursor.getEncoded(true),
+                new byte[][]{precursor.getEncoded(),
                         bob_pubkey_point.getEncoded(true),
-                        dh_point.getEncoded(true),
+                        dh,
                         RandomOracle.getStringHash("X_COORDINATE"), kfrag_id},
                 params
         );
 
-        //
+
         BigInteger rk = Helpers.poly_eval(coefficients.toArray(new BigInteger[0]), share_index, params.getCurve().getOrder());
 
         ECPoint commitment = RandomOracle.unsafeHash2Point(params.getG().getEncoded(true), "NuCypher/UmbralParameters/u".getBytes(), params).multiply(rk);
 
         ByteArrayOutputStream sign_bob = new ByteArrayOutputStream();
-        try {
-            sign_bob.write(kfrag_id);
-            assert delegating_pubkey != null;
-            sign_bob.write(delegating_pubkey.getEncoded());
-            sign_bob.write(receiving_pubkey.getEncoded());
-            sign_bob.write(commitment.getEncoded(true));
-            sign_bob.write(precursor.getEncoded(true));
-        } catch (IOException e) {
-            e.printStackTrace();
+
+        sign_bob.write(kfrag_id);
+        assert delegating_pubkey != null;
+        sign_bob.write(delegating_pubkey.getEncoded());
+        sign_bob.write(receiving_pubkey.getEncoded());
+        sign_bob.write(commitment.getEncoded(true));
+        sign_bob.write(precursor.getEncoded());
+
+        if (metadata != null) {
+            sign_bob.write(metadata);
         }
         // sign message for bob
         Ed25519Signer ed25519Signer = new Ed25519Signer();
@@ -251,7 +277,7 @@ public class pre {
         ed25519Signer.update(sign_bob.toByteArray(), 0, sign_bob.toByteArray().length);
 
         byte[] signature_for_bob = ed25519Signer.generateSignature();
-        ;
+
 
         byte mode;
         if (sign_delegating && sign_receiving)
@@ -264,19 +290,17 @@ public class pre {
             mode = kFrag.NO_KEY;
 
         ByteArrayOutputStream sign_proxy = new ByteArrayOutputStream();
-        try {
-            sign_proxy.write(kfrag_id);
-            sign_proxy.write(commitment.getEncoded(true));
-            sign_proxy.write(precursor.getEncoded(true));
-            sign_proxy.write(mode);
-            if (sign_delegating) {
-                assert delegating_pubkey != null;
-                sign_proxy.write(delegating_pubkey.getEncoded());
-            }
-            if (sign_receiving)
-                sign_proxy.write(receiving_pubkey.getEncoded());
-        } catch (IOException e) {
-            e.printStackTrace();
+        sign_proxy.write(kfrag_id);
+        sign_proxy.write(commitment.getEncoded(true));
+        sign_proxy.write(precursor.getEncoded());
+        sign_proxy.write(mode);
+        if (sign_delegating) {
+            sign_proxy.write(delegating_pubkey.getEncoded());
+        }
+        if (sign_receiving)
+            sign_proxy.write(receiving_pubkey.getEncoded());
+        if (metadata != null) {
+            sign_proxy.write(metadata);
         }
 
         ed25519Signer.update(sign_proxy.toByteArray(), 0, sign_proxy.toByteArray().length);

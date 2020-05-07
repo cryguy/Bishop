@@ -8,23 +8,28 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 
 public class Capsule {
     // TODO: From Bytes
+    byte[] metadata;
     ECParameterSpec params;
     ECPoint point_e;
     ECPoint point_v;
     BigInteger signaure;
+    byte[] hash;
     Ed25519PublicKeyParameters verifying = null;
     HashMap<String, ECPublicKey> correctness_key = new HashMap<>();
     ArrayList<cFrag> _attached_cfag = new ArrayList<>();
 
-    public Capsule(ECParameterSpec params, ECPoint point_e, ECPoint point_v, BigInteger signaure) {
+    public Capsule(ECParameterSpec params, ECPoint point_e, ECPoint point_v, BigInteger signaure, byte[] metadata, byte[] hash) {
         this.params = params;
         this.point_e = point_e;
         this.point_v = point_v;
         this.signaure = signaure;
+        this.metadata = metadata;
+        this.hash = hash;
     }
 
     public cFrag first_cfrag() throws GeneralSecurityException {
@@ -43,10 +48,10 @@ public class Capsule {
         if (cfrag.verify_correctness(this))
             this._attached_cfag.add(cfrag);
         else
-            throw new SecurityException("cFrag is not correct! Cant be attached");
+            throw new GeneralSecurityException("cFrag is not correct! Cant be attached");
     }
 
-    public boolean not_valid() throws GeneralSecurityException {
+    public boolean not_valid() throws GeneralSecurityException, IOException {
         /*
         g = self.params.g
         e, v, s = self.components()
@@ -54,7 +59,15 @@ public class Capsule {
         g * s == v + (h * e)
          */
         BigInteger h = RandomOracle.hash2curve(new byte[][]{point_e.getEncoded(true), point_v.getEncoded(true)}, params);
-        return !params.getG().multiply(signaure).equals(point_v.add(point_e.multiply(h)));
+
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        outputStream.write(this.point_e.getEncoded(true));
+        outputStream.write(this.point_v.getEncoded(true));
+
+
+        var hash = RandomOracle.kdf(outputStream.toByteArray(), 32, signaure.toByteArray(), metadata);
+
+        return !(params.getG().multiply(signaure).equals(point_v.add(point_e.multiply(h))) && Arrays.equals(hash, this.hash));
     }
 
     public byte[] get_bytes() throws IOException {
@@ -62,6 +75,9 @@ public class Capsule {
         output.write(this.point_e.getEncoded(true));
         output.write(this.point_v.getEncoded(true));
         output.write(this.signaure.toByteArray());
+        if (this.metadata != null) {
+            output.write(this.metadata);
+        }
         return output.toByteArray();
     }
 }

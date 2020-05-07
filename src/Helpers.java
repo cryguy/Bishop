@@ -1,18 +1,13 @@
-
-import org.bouncycastle.crypto.AsymmetricCipherKeyPair;
-import org.bouncycastle.crypto.generators.ECKeyPairGenerator;
-import org.bouncycastle.crypto.params.ECDomainParameters;
-import org.bouncycastle.crypto.params.ECKeyGenerationParameters;
-import org.bouncycastle.crypto.params.ECPrivateKeyParameters;
-import org.bouncycastle.jce.ECNamedCurveTable;
+import org.bouncycastle.asn1.x9.X9ECParameters;
+import org.bouncycastle.crypto.ec.CustomNamedCurves;
 import org.bouncycastle.jce.interfaces.ECPrivateKey;
 import org.bouncycastle.jce.interfaces.ECPublicKey;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.jce.spec.ECParameterSpec;
 import org.bouncycastle.jce.spec.ECPrivateKeySpec;
 import org.bouncycastle.jce.spec.ECPublicKeySpec;
-import org.bouncycastle.math.ec.ECPoint;
 
+import javax.crypto.KeyAgreement;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.security.*;
@@ -49,40 +44,43 @@ public class Helpers {
         return data;
     }
 
-    static ECPrivateKey getPrivateKey(BigInteger secret, ECParameterSpec ecSpec) throws InvalidKeySpecException, NoSuchAlgorithmException {
+    static ECPrivateKey getPrivateKey(BigInteger secret, ECParameterSpec ecSpec) throws InvalidKeySpecException, NoSuchAlgorithmException, NoSuchProviderException {
         Security.addProvider(new BouncyCastleProvider());
-        KeyFactory keyFactory = KeyFactory.getInstance("EC");
+        KeyFactory keyFactory = KeyFactory.getInstance("EC", "BC");
         ECPrivateKeySpec privateKeySpec = new ECPrivateKeySpec(secret, ecSpec);
         return (ECPrivateKey) keyFactory.generatePrivate(privateKeySpec);
     }
 
     //keygen
-    static ECPrivateKey getRandomPrivateKey() throws InvalidKeySpecException, NoSuchAlgorithmException, NoSuchProviderException {
+    static ECPrivateKey getRandomPrivateKey() throws NoSuchAlgorithmException, InvalidAlgorithmParameterException {
+        X9ECParameters curveParams = CustomNamedCurves.getByName("Curve25519");
+        ECParameterSpec ecSpec = new ECParameterSpec(curveParams.getCurve(), curveParams.getG(), curveParams.getN(), curveParams.getH(), curveParams.getSeed());
 
-        ECKeyPairGenerator gen = new ECKeyPairGenerator();
-        SecureRandom secureRandom = new SecureRandom();
-        ECParameterSpec ecSpec = ECNamedCurveTable.getParameterSpec("secp256k1");
-        ECDomainParameters ecParams = new ECDomainParameters(ecSpec.getCurve(), ecSpec.getG(),
-                ecSpec.getN(), ecSpec.getH());
-        ECKeyGenerationParameters keyGenParam = new ECKeyGenerationParameters(ecParams, secureRandom);
-        gen.init(keyGenParam);
-        AsymmetricCipherKeyPair kp = gen.generateKeyPair();
-        ECPrivateKeyParameters privateKey = (ECPrivateKeyParameters) kp.getPrivate();
-        return getPrivateKey(privateKey.getD(), ecSpec);
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", new BouncyCastleProvider());
+        kpg.initialize(ecSpec);
+
+        KeyPair keyPair = kpg.generateKeyPair();
+        PrivateKey privateKey = keyPair.getPrivate();
+
+        return (ECPrivateKey) privateKey;
+
+    }
+
+    static byte[] doECDH(ECPrivateKey privatekey, ECPublicKey publicKey) throws NoSuchProviderException, NoSuchAlgorithmException, InvalidKeyException {
+        KeyAgreement ka = KeyAgreement.getInstance("ECDH", "BC");
+        ka.init(privatekey);
+        ka.doPhase(publicKey, true);
+        return ka.generateSecret();
     }
 
     static ECPublicKey getPublicKey(ECPrivateKey privateKey) throws GeneralSecurityException {
-        Security.addProvider(new BouncyCastleProvider());
 
-        KeyFactory keyFactory = KeyFactory.getInstance("EC");
-        ECParameterSpec ecSpec = privateKey.getParameters();
-
-        ECPoint Q = ecSpec.getG().multiply(privateKey.getD());
-        byte[] publicDerBytes = Q.getEncoded(false);
-
-        ECPoint point = ecSpec.getCurve().decodePoint(publicDerBytes);
-        ECPublicKeySpec pubSpec = new ECPublicKeySpec(point, ecSpec);
-        return (ECPublicKey) keyFactory.generatePublic(pubSpec);
+//        KeyPairGenerator kpg = KeyPairGenerator.getInstance("XDH");
+        X9ECParameters curveParams = CustomNamedCurves.getByName("Curve25519");
+        KeyFactory kf = KeyFactory.getInstance("EC", "BC");
+        ECParameterSpec pubSpec = new ECParameterSpec(curveParams.getCurve(), curveParams.getG(), curveParams.getN(), curveParams.getH(), curveParams.getSeed());
+        ECPublicKeySpec publicKeySpec = new ECPublicKeySpec(curveParams.getG().multiply(privateKey.getD()), pubSpec);
+        return (ECPublicKey) kf.generatePublic(publicKeySpec);
 
     }
 

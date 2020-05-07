@@ -16,14 +16,14 @@ public class cFrag {
     ECPoint e1;
     ECPoint v1;
     byte[] kfrag_id;
-    ECPoint precursor;
+    ECPublicKey precursor;
     CorrectnessProof proof;
 
-    public cFrag(ECPoint e1, ECPoint v1, byte[] kfrag_id, ECPoint precursor) {
+    public cFrag(ECPoint e1, ECPoint v1, byte[] kfrag_id, ECPublicKey precursor) {
         this(e1, v1, kfrag_id, precursor, null);
     }
 
-    public cFrag(ECPoint e1, ECPoint v1, byte[] kfrag_id, ECPoint precursor, CorrectnessProof proof) {
+    public cFrag(ECPoint e1, ECPoint v1, byte[] kfrag_id, ECPublicKey precursor, CorrectnessProof proof) {
         this.e1 = e1;
         this.v1 = v1;
         this.kfrag_id = kfrag_id;
@@ -36,7 +36,7 @@ public class cFrag {
         outputStream.write(e1.getEncoded(true));
         outputStream.write(v1.getEncoded(true));
         outputStream.write(kfrag_id);
-        outputStream.write(precursor.getEncoded(true));
+        outputStream.write(precursor.getEncoded());
         if (proof != null)
             outputStream.write(proof.to_bytes());
         return outputStream.toByteArray();
@@ -114,7 +114,7 @@ public class cFrag {
 
         BigInteger h = RandomOracle.hash2curve(input.toArray(new byte[0][]), params);
 
-        ECPoint precursor = this.precursor;
+        ECPublicKey precursor = this.precursor;
         byte[] kfrag_id = this.kfrag_id;
 
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
@@ -122,7 +122,11 @@ public class cFrag {
         outputStream.write(delegating_pubkey.getEncoded());
         outputStream.write(receiving_pubkey.getEncoded());
         outputStream.write(u1.getEncoded(true));
-        outputStream.write(precursor.getEncoded(true));
+        outputStream.write(precursor.getEncoded());
+
+        if (capsule.metadata != null) {
+            outputStream.write(capsule.metadata);
+        }
         Ed25519Signer ed25519Signer = new Ed25519Signer();
         ed25519Signer.init(false, signing_pubkey);
 
