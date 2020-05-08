@@ -20,6 +20,9 @@ import java.util.Arrays;
 
 public class RandomOracle {
     public static byte[] getStringHash(String input) throws NoSuchAlgorithmException {
+        if (input == null) {
+            return null;
+        }
         MessageDigest md = MessageDigest.getInstance("SHA-512");
         byte[] messageDigest = md.digest(input.getBytes());
 
@@ -84,7 +87,9 @@ public class RandomOracle {
             blake2b.update(stupid_constant);
         }
         for (byte[] key : items_to_hash) {
-            blake2b.update(key);
+            if (key != null) {
+                blake2b.update(key);
+            }
         }
 
         byte[] hash = blake2b.digest();

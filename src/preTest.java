@@ -69,6 +69,7 @@ class preTest {
         capsule.set_correctness_key(alicePublic, bobPublic, aliceVerifying);
 
         ArrayList<cFrag> cfrags = new ArrayList<>();
+        var k1 = kfrags.get(0);
 
         capsule.attach_cfrag(pre.reencrypt(kfrags.get(0), capsule, true, null, true));
         {
@@ -82,8 +83,6 @@ class preTest {
         capsule.attach_cfrag(pre.reencrypt(kfrags.get(2), capsule, true, null, true));
         capsule.attach_cfrag(pre.reencrypt(kfrags.get(3), capsule, true, null, true));
         capsule.attach_cfrag(pre.reencrypt(kfrags.get(4), capsule, true, null, true));
-        capsule.attach_cfrag(pre.reencrypt(kfrags.get(5), capsule, true, null, true));
-        capsule.attach_cfrag(pre.reencrypt(kfrags.get(6), capsule, true, null, true));
         // should be able to decrypt now.
         Assertions.assertEquals(Helpers.bytesToHex(plaintext), Helpers.bytesToHex(pre.decrypt(ciphertext, capsule, bobPrivate, true)));
     }
@@ -139,13 +138,21 @@ class preTest {
         for (cFrag cFrag : cfrags) {
             capsule.attach_cfrag(cFrag);
         }
-
+        // all is good
         Assertions.assertEquals(Helpers.bytesToHex(plaintext), Helpers.bytesToHex(pre.decrypt(ciphertext, capsule, bobPrivate, true)));
 
         capsule._attached_cfag.clear();
-        ArrayList<kFrag> kfrags_diffmeta = pre.generate_kfrag(alicePrivate, aliceSigning, bobPublic, 5, 10, "WrongMeta".getBytes());
-        Assertions.assertThrows(GeneralSecurityException.class, () -> capsule.attach_cfrag(pre.reencrypt(kfrags_diffmeta.get(0), capsule, true, null, true)));
 
+        {
+            // try doing some bs... as an attacker
+            ArrayList<kFrag> kfrags_diffmeta = pre.generate_kfrag(alicePrivate, aliceSigning, bobPublic, 1, 2, "WrongMeta".getBytes());
+            //capsule.attach_cfrag();
+            Capsule capsule1 = new Capsule(capsule.params, capsule.point_e, capsule.point_v, capsule.signaure, "WRONG".getBytes(), capsule.hash);
+            capsule1.correctness_key = capsule.correctness_key;
+            capsule1._attached_cfag.add(pre.reencrypt(kfrags_diffmeta.get(0), capsule, true, null, true));
+            assertThrows(GeneralSecurityException.class, () -> pre.decrypt(ciphertext, capsule1, bobPrivate, true));
+            assertThrows(GeneralSecurityException.class, () -> pre._decap_reencrypted(bobPrivate, capsule1, 32, capsule.metadata));
+        }
 
     }
 }

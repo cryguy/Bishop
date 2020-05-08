@@ -131,7 +131,9 @@ public class pre {
         BigInteger d = RandomOracle.hash2curve(new byte[][]{precursor.getEncoded(),
                         publicKey.getEncoded(true),
                         dh,
-                        RandomOracle.getStringHash("NON_INTERACTIVE")}
+                        RandomOracle.getStringHash("NON_INTERACTIVE"),
+                        RandomOracle.getStringHash(Helpers.bytesToHex(metadata))
+                }
                 , params);
 
         ECPoint e = capsule.point_e;
@@ -153,7 +155,7 @@ public class pre {
         return RandomOracle.kdf(outputStream.toByteArray(), key_length, null, null);
     }
 
-    public static cFrag reencrypt(kFrag kfrag, Capsule capsule, boolean provide_proof, byte[] metadata, boolean verify_kfrag) throws GeneralSecurityException, IOException {
+    public static cFrag reencrypt(kFrag kfrag, Capsule capsule, boolean provide_proof, byte[] proxy_meta, boolean verify_kfrag) throws GeneralSecurityException, IOException {
         if (capsule.not_valid())
             throw new GeneralSecurityException("Capsule Verification Failed. Capsule tampered.");
         if (verify_kfrag)
@@ -168,7 +170,7 @@ public class pre {
         cFrag cfrag = new cFrag(e1, v1, kfrag.identifier, kfrag.point_precursor);
 
         if (provide_proof) {
-            cfrag.proof_correctness(capsule, kfrag, metadata);
+            cfrag.proof_correctness(capsule, kfrag, proxy_meta);
         }
         return cfrag;
     }
@@ -218,7 +220,7 @@ public class pre {
 
         // ECPoint dh_point = bob_pubkey_point.multiply(precursorPrivate.getD());
         var dh = Helpers.doECDH(precursorPrivate, receiving_pubkey);
-        byte[][] input_d = {precursor.getEncoded(), bob_pubkey_point.getEncoded(true), dh, RandomOracle.getStringHash("NON_INTERACTIVE")};
+        byte[][] input_d = {precursor.getEncoded(), bob_pubkey_point.getEncoded(true), dh, RandomOracle.getStringHash("NON_INTERACTIVE"), RandomOracle.getStringHash(Helpers.bytesToHex(metadata))};
         BigInteger d = RandomOracle.hash2curve(input_d, precursorPrivate.getParameters());
 
         ArrayList<BigInteger> coefficients = new ArrayList<>();
