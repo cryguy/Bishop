@@ -1,5 +1,5 @@
-import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters;
-import org.bouncycastle.crypto.signers.Ed25519Signer;
+import net.i2p.crypto.eddsa.EdDSAEngine;
+import net.i2p.crypto.eddsa.EdDSAPrivateKey;
 import org.bouncycastle.jce.interfaces.ECPrivateKey;
 import org.bouncycastle.jce.interfaces.ECPublicKey;
 import org.bouncycastle.jce.spec.ECParameterSpec;
@@ -9,7 +9,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.security.GeneralSecurityException;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.security.Signature;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.logging.Logger;
@@ -18,7 +20,7 @@ public class pre {
     private final static Logger LOGGER = Logger.getLogger(pre.class.getName());
 
     // re-keygen
-    public static ArrayList<kFrag> generate_kfrag(ECPrivateKey delegating_privkey, Ed25519PrivateKeyParameters signer, ECPublicKey receiving_pubkey, int threshold, int N, byte[] metadata) throws GeneralSecurityException, IOException {
+    public static ArrayList<kFrag> generate_kfrag(ECPrivateKey delegating_privkey, EdDSAPrivateKey signer, ECPublicKey receiving_pubkey, int threshold, int N, byte[] metadata) throws GeneralSecurityException, IOException {
         return generate_kfrag(delegating_privkey, receiving_pubkey, threshold, N, signer, true, true, metadata);
     }
 
@@ -67,7 +69,6 @@ public class pre {
 
         byte[] capsule_bytes = capsule.get_bytes();
 
-        // perform chacha-poly1305
         byte[] nounce = new byte[12];
         SecureRandom random = new SecureRandom();
         random.nextBytes(nounce);
@@ -159,7 +160,9 @@ public class pre {
         if (capsule.not_valid())
             throw new GeneralSecurityException("Capsule Verification Failed. Capsule tampered.");
         if (verify_kfrag)
-            if (kfrag.verify_for_capsule(capsule))
+            // wtf happened here...
+            // it didnt work before this
+            if (!kfrag.verify_for_capsule(capsule))
                 throw new GeneralSecurityException("Invalid kFrag!");
 
         BigInteger rk = kfrag.bn_key;
@@ -196,7 +199,7 @@ public class pre {
     }
 
     // verified this part
-    public static ArrayList<kFrag> generate_kfrag(ECPrivateKey delegating_privkey, ECPublicKey receiving_pubkey, int threshold, int N, Ed25519PrivateKeyParameters signer, boolean sign_delegating, boolean sign_receiving, byte[] metadata) throws GeneralSecurityException, IOException {
+    public static ArrayList<kFrag> generate_kfrag(ECPrivateKey delegating_privkey, ECPublicKey receiving_pubkey, int threshold, int N, EdDSAPrivateKey signer, boolean sign_delegating, boolean sign_receiving, byte[] metadata) throws GeneralSecurityException, IOException {
 
         if (threshold <= 0 || threshold > N)
             throw new IllegalArgumentException("Arguments threshold and N must satisfy 0 < threshold <= N");
@@ -246,7 +249,7 @@ public class pre {
         return kfrags;
     }
 
-    public static kFrag getkFrag(ECPublicKey receiving_pubkey, Ed25519PrivateKeyParameters signer, boolean sign_delegating, boolean sign_receiving, ECParameterSpec params, ECPublicKey delegating_pubkey, ECPoint bob_pubkey_point, ECPublicKey precursor, byte[] dh, ArrayList<BigInteger> coefficients, byte[] kfrag_id, byte[] metadata) throws GeneralSecurityException, IOException {
+    private static kFrag getkFrag(ECPublicKey receiving_pubkey, EdDSAPrivateKey signer, boolean sign_delegating, boolean sign_receiving, ECParameterSpec params, ECPublicKey delegating_pubkey, ECPoint bob_pubkey_point, ECPublicKey precursor, byte[] dh, ArrayList<BigInteger> coefficients, byte[] kfrag_id, byte[] metadata) throws GeneralSecurityException, IOException {
 
         BigInteger share_index = RandomOracle.hash2curve(
                 new byte[][]{precursor.getEncoded(),
@@ -274,12 +277,12 @@ public class pre {
             sign_bob.write(metadata);
         }
         // sign message for bob
-        Ed25519Signer ed25519Signer = new Ed25519Signer();
-        ed25519Signer.init(true, signer);
-        ed25519Signer.update(sign_bob.toByteArray(), 0, sign_bob.toByteArray().length);
 
-        byte[] signature_for_bob = ed25519Signer.generateSignature();
+        Signature edDsaSigner = new EdDSAEngine(MessageDigest.getInstance("SHA-512"));
+        edDsaSigner.initSign(signer);
+        edDsaSigner.update(sign_bob.toByteArray());
 
+        byte[] signature_for_bob = edDsaSigner.sign();
 
         byte mode;
         if (sign_delegating && sign_receiving)
@@ -304,9 +307,9 @@ public class pre {
         if (metadata != null) {
             sign_proxy.write(metadata);
         }
+        edDsaSigner.update(sign_proxy.toByteArray());
+        byte[] signature_for_proxy = edDsaSigner.sign();
 
-        ed25519Signer.update(sign_proxy.toByteArray(), 0, sign_proxy.toByteArray().length);
-        byte[] signature_for_proxy = ed25519Signer.generateSignature();
         return new kFrag(kfrag_id, rk, commitment, precursor, signature_for_proxy, signature_for_bob, mode);
     }
 }

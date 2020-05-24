@@ -1,5 +1,5 @@
-import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters;
-import org.bouncycastle.crypto.signers.Ed25519Signer;
+import net.i2p.crypto.eddsa.EdDSAEngine;
+import net.i2p.crypto.eddsa.EdDSAPublicKey;
 import org.bouncycastle.jce.interfaces.ECPublicKey;
 import org.bouncycastle.jce.spec.ECParameterSpec;
 import org.bouncycastle.math.ec.ECPoint;
@@ -8,6 +8,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.security.GeneralSecurityException;
+import java.security.MessageDigest;
+import java.security.Signature;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -85,7 +87,7 @@ public class cFrag {
         HashMap<String, ECPublicKey> correctness_key = capsule.correctness_key;
 
         ECPublicKey delegating_pubkey = correctness_key.get("delegating");
-        Ed25519PublicKeyParameters signing_pubkey = capsule.verifying;
+        EdDSAPublicKey signing_pubkey = capsule.verifying;
         ECPublicKey receiving_pubkey = correctness_key.get("receiving");
 
         ECParameterSpec params = capsule.params;
@@ -127,11 +129,17 @@ public class cFrag {
         if (capsule.metadata != null) {
             outputStream.write(capsule.metadata);
         }
-        Ed25519Signer ed25519Signer = new Ed25519Signer();
-        ed25519Signer.init(false, signing_pubkey);
 
-        ed25519Signer.update(outputStream.toByteArray(), 0, outputStream.toByteArray().length);
-        boolean valid_sig = ed25519Signer.verifySignature(this.proof.signature);
+        Signature edDsaSigner = new EdDSAEngine(MessageDigest.getInstance("SHA-512"));
+        edDsaSigner.initVerify(signing_pubkey);
+        edDsaSigner.update(outputStream.toByteArray());
+        boolean valid_sig = edDsaSigner.verify(this.proof.signature);
+
+//        Ed25519Signer ed25519Signer = new Ed25519Signer();
+//        ed25519Signer.init(false, signing_pubkey);
+//
+//        ed25519Signer.update(outputStream.toByteArray(), 0, outputStream.toByteArray().length);
+//        boolean valid_sig = ed25519Signer.verifySignature(this.proof.signature);
 
         BigInteger z3 = proof.sig_key;
         boolean correct_e = e.multiply(z3).equals(e2.add(e1.multiply(h)));

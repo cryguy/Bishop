@@ -1,4 +1,4 @@
-import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters;
+import net.i2p.crypto.eddsa.EdDSAPublicKey;
 import org.bouncycastle.jce.interfaces.ECPublicKey;
 import org.bouncycastle.jce.spec.ECParameterSpec;
 import org.bouncycastle.math.ec.ECPoint;
@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 
 public class Capsule {
+    // TODO: make variables private
     // TODO: From Bytes
     byte[] metadata;
     ECParameterSpec params;
@@ -19,7 +20,7 @@ public class Capsule {
     ECPoint point_v;
     BigInteger signaure;
     byte[] hash;
-    Ed25519PublicKeyParameters verifying = null;
+    EdDSAPublicKey verifying = null;
     HashMap<String, ECPublicKey> correctness_key = new HashMap<>();
     ArrayList<cFrag> _attached_cfag = new ArrayList<>();
 
@@ -38,7 +39,7 @@ public class Capsule {
         return _attached_cfag.get(0);
     }
 
-    public void set_correctness_key(ECPublicKey alice_public, ECPublicKey bob_public, Ed25519PublicKeyParameters alice_verifying) {
+    public void set_correctness_key(ECPublicKey alice_public, ECPublicKey bob_public, EdDSAPublicKey alice_verifying) {
         this.correctness_key.put("delegating", alice_public);
         this.correctness_key.put("receiving", bob_public);
         verifying = alice_verifying;

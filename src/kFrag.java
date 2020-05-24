@@ -1,5 +1,5 @@
-import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters;
-import org.bouncycastle.crypto.signers.Ed25519Signer;
+import net.i2p.crypto.eddsa.EdDSAEngine;
+import net.i2p.crypto.eddsa.EdDSAPublicKey;
 import org.bouncycastle.jce.interfaces.ECPublicKey;
 import org.bouncycastle.jce.spec.ECParameterSpec;
 import org.bouncycastle.math.ec.ECPoint;
@@ -7,7 +7,7 @@ import org.bouncycastle.math.ec.ECPoint;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
-import java.security.GeneralSecurityException;
+import java.security.*;
 
 
 public class kFrag {
@@ -44,17 +44,10 @@ public class kFrag {
         int bn_size = curve.getCurve().getOrder().bitLength();
         int point_size = curve.getEncoded(true).length;
 
-        //        self.id --> 1 bn_size
-        //        self.bn_key --> 1 bn_size
-        //        self.point_commitment --> 1 point_size
-        //        self.point_precursor --> 1 point_size
-        //        self.signature_for_proxy --> 2 bn_size
-        //        self.signature_for_bob --> 2 bn_size
-        //        self.keys_in_signature --> 1
         return (bn_size * 6) + (point_size * 2) + 1;
     }
 
-    private boolean verify(Ed25519PublicKeyParameters signing_pubkey, ECPublicKey delegating_pubkey, ECPublicKey receiving_pubkey, ECParameterSpec params, byte[] metadata) throws IOException {
+    private boolean verify(EdDSAPublicKey signing_pubkey, ECPublicKey delegating_pubkey, ECPublicKey receiving_pubkey, ECParameterSpec params, byte[] metadata) throws IOException, NoSuchAlgorithmException, InvalidKeyException, SignatureException {
         ECPoint u = RandomOracle.unsafeHash2Point(params.getG().getEncoded(true), "NuCypher/UmbralParameters/u".getBytes(), params);
 
         boolean correct_commitment = this.point_commitment.equals(u.multiply(this.bn_key));
@@ -72,12 +65,12 @@ public class kFrag {
         if (metadata != null) {
             outputStream.write(metadata);
         }
-        Ed25519Signer ed25519Signer = new Ed25519Signer();
-        ed25519Signer.init(false, signing_pubkey);
-        ed25519Signer.update(outputStream.toByteArray(), 0, outputStream.toByteArray().length);
-        ed25519Signer.verifySignature(signature_for_proxy);
 
-        boolean valid_kfrag = ed25519Signer.verifySignature(signature_for_proxy);
+
+        Signature edDsaSigner = new EdDSAEngine(MessageDigest.getInstance("SHA-512"));
+        edDsaSigner.initVerify(signing_pubkey);
+        edDsaSigner.update(outputStream.toByteArray());
+        boolean valid_kfrag = edDsaSigner.verify(signature_for_proxy);
 
         return valid_kfrag && correct_commitment;
     }

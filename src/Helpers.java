@@ -13,10 +13,11 @@ import java.nio.ByteBuffer;
 import java.security.*;
 import java.security.spec.InvalidKeySpecException;
 import java.util.ArrayList;
+import java.util.PrimitiveIterator;
 
 public class Helpers {
-    private static final char[] HEX_ARRAY = "0123456789ABCDEF".toCharArray();
 
+    private static final char[] HEX_ARRAY = "0123456789ABCDEF".toCharArray();
 
     static byte[] intToBytes( final int i ,final int length) {
         ByteBuffer bb = ByteBuffer.allocate(length);
@@ -52,6 +53,105 @@ public class Helpers {
         KeyFactory keyFactory = KeyFactory.getInstance("EC", "BC");
         ECPrivateKeySpec privateKeySpec = new ECPrivateKeySpec(secret, ecSpec);
         return (ECPrivateKey) keyFactory.generatePrivate(privateKeySpec);
+    }
+
+    static int[] to_mnemonic(byte[] data) throws GeneralSecurityException {
+
+        StringBuilder data_bin = new StringBuilder();
+        for (byte datum : data) {
+            data_bin.append(String.format("%8s", Integer.toBinaryString(datum & 0xFF)).replace(' ', '0'));
+        }
+
+        var datarecur = data_bin.toString();
+        var length = ((data.length * 8) / 11) + 1;
+        int it = 0;
+        int j = 0;
+        StringBuilder stringBuilder = new StringBuilder();
+        String[] accum = new String[length + 1];
+        var lengthlast = 0;
+        for (PrimitiveIterator.OfInt iter = datarecur.chars().iterator(); iter.hasNext(); ) {
+            int i = iter.next();
+            if (it == 11) {
+                accum[j] = stringBuilder.toString();
+                stringBuilder = new StringBuilder();
+                it = 0;
+                if (i == 49)
+                    stringBuilder.append(1);
+                if (i == 48)
+                    stringBuilder.append(0);
+                it++;
+                j++;
+            } else if (iter.hasNext()) {
+                if (i == 49)
+                    stringBuilder.append(1);
+                if (i == 48)
+                    stringBuilder.append(0);
+                it++;
+            } else {
+                // not reliable...
+                if (i == 49)
+                    stringBuilder.append(1);
+                if (i == 48)
+                    stringBuilder.append(0);
+                accum[j] = stringBuilder.toString();
+                lengthlast = stringBuilder.toString().length();
+            }
+
+        }
+        // to fix the last byte
+        accum[length] = "11111111000";
+        int[] returning = new int[length + 2];
+        for (int i = 0; i < accum.length; i++) {
+
+            int foo = Integer.parseInt(accum[i], 2);
+            if (foo > 2040)
+                throw new GeneralSecurityException("Refresh Code from PC. -  Error"); // lazy fix
+            returning[i] = foo;
+        }
+        // how many bytes to copy to the left
+        returning[returning.length - 1] = lengthlast;
+
+        return returning;
+    }
+
+    static byte[] from_mneumonic(int[] data) {
+
+        StringBuilder data_bin = new StringBuilder();
+        for (int i = 0; i < data.length - 1; i++) {
+            if (i != data.length - 1)
+                data_bin.append(String.format("%11s", Integer.toBinaryString(data[i])).replace(' ', '0'));
+            else
+                data_bin.append(Integer.toBinaryString(data[i])); // last byte stays the same
+        }
+
+        // 11 from the right
+        // take 3
+        // 11 + x
+        // last byte of original
+        String original = data_bin.substring(data_bin.length() - (11 + data[data.length - 1]), data_bin.length() - 11);
+        // restore last byte and remove the padding
+        data_bin.replace(data_bin.length() - 22, data_bin.length(), original);
+        // reconstruct byte array
+        int it = 0;
+        byte[] from_mne = new byte[data_bin.toString().length() / 8];
+        int j = 0;
+        StringBuilder stringBuilder = new StringBuilder();
+        for (PrimitiveIterator.OfInt iter = data_bin.toString().chars().iterator(); iter.hasNext(); ) {
+            int i = iter.next();
+            if (i == 49)
+                stringBuilder.append(1);
+            if (i == 48)
+                stringBuilder.append(0);
+
+            if (it != 7) {
+                it++;
+            } else {
+                from_mne[j++] = (byte) Integer.parseInt(stringBuilder.toString(), 2);
+                stringBuilder = new StringBuilder();
+                it = 0;
+            }
+        }
+        return from_mne;
     }
 
     //keygen

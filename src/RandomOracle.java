@@ -29,14 +29,16 @@ public class RandomOracle {
         return Arrays.copyOfRange(messageDigest, 0, 8);
     }
 
-    static byte[] chacha20_poly1305_enc(byte[] nounce, byte[] data, byte[] key, byte[] aditional) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException, IOException {
+    static byte[] chacha20_poly1305_enc(byte[] nounce, byte[] data, byte[] key, byte[] additional) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException, IOException {
         // init ChaCha20-Poly1305
         Cipher cipher = Cipher.getInstance("ChaCha20-Poly1305/None/NoPadding");
         AlgorithmParameterSpec ivParameterSpec = new IvParameterSpec(nounce);
         SecretKeySpec keySpec = new SecretKeySpec(key, "ChaCha20");
         cipher.init(Cipher.ENCRYPT_MODE, keySpec, ivParameterSpec);
         // insert Authenticated Data
-        cipher.updateAAD(aditional);
+        if (additional != null) {
+            cipher.updateAAD(additional);
+        }
 
         byte[] cipher_text = cipher.doFinal(data);
 
@@ -53,7 +55,9 @@ public class RandomOracle {
         AlgorithmParameterSpec ivParameterSpec = new IvParameterSpec(iv);
         SecretKeySpec keySpec = new SecretKeySpec(key, "ChaCha20");
         cipher.init(Cipher.DECRYPT_MODE, keySpec, ivParameterSpec);
-        cipher.updateAAD(aditional);
+        if (aditional != null) {
+            cipher.updateAAD(aditional);
+        }
         return cipher.doFinal(cipher_text);
     }
 
