@@ -1,3 +1,5 @@
+package my.ditto.bishop;
+
 import org.bouncycastle.math.ec.ECPoint;
 
 import java.io.ByteArrayOutputStream;

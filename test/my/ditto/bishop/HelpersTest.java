@@ -1,3 +1,5 @@
+package my.ditto.bishop;
+
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;

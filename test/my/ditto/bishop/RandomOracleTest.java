@@ -1,3 +1,5 @@
+package my.ditto.bishop;
+
 import org.bouncycastle.jce.interfaces.ECPrivateKey;
 import org.junit.jupiter.api.Test;
 

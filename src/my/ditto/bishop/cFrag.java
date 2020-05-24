@@ -1,3 +1,5 @@
+package my.ditto.bishop;
+
 import net.i2p.crypto.eddsa.EdDSAEngine;
 import net.i2p.crypto.eddsa.EdDSAPublicKey;
 import org.bouncycastle.jce.interfaces.ECPublicKey;
@@ -47,7 +49,7 @@ public class cFrag {
     public void proof_correctness(Capsule capsule, kFrag kfrag, byte[] metadata) throws GeneralSecurityException, IOException {
         ECParameterSpec params = capsule.params;
         if (capsule.not_valid())
-            throw new GeneralSecurityException("Capsule Verification Failed. Capsule tampered.");
+            throw new GeneralSecurityException("my.ditto.bishop.Capsule Verification Failed. my.ditto.bishop.Capsule tampered.");
 
         BigInteger rk = kfrag.bn_key;
         BigInteger t = Helpers.getRandomPrivateKey().getD();
@@ -134,12 +136,6 @@ public class cFrag {
         edDsaSigner.initVerify(signing_pubkey);
         edDsaSigner.update(outputStream.toByteArray());
         boolean valid_sig = edDsaSigner.verify(this.proof.signature);
-
-//        Ed25519Signer ed25519Signer = new Ed25519Signer();
-//        ed25519Signer.init(false, signing_pubkey);
-//
-//        ed25519Signer.update(outputStream.toByteArray(), 0, outputStream.toByteArray().length);
-//        boolean valid_sig = ed25519Signer.verifySignature(this.proof.signature);
 
         BigInteger z3 = proof.sig_key;
         boolean correct_e = e.multiply(z3).equals(e2.add(e1.multiply(h)));

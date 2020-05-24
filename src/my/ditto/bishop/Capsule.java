@@ -1,3 +1,5 @@
+package my.ditto.bishop;
+
 import net.i2p.crypto.eddsa.EdDSAPublicKey;
 import org.bouncycastle.jce.interfaces.ECPublicKey;
 import org.bouncycastle.jce.spec.ECParameterSpec;
@@ -49,7 +51,7 @@ public class Capsule {
         if (cfrag.verify_correctness(this))
             this._attached_cfag.add(cfrag);
         else
-            throw new GeneralSecurityException("cFrag is not correct! Cant be attached");
+            throw new GeneralSecurityException("my.ditto.bishop.cFrag is not correct! Cant be attached");
     }
 
     public boolean not_valid() throws GeneralSecurityException, IOException {

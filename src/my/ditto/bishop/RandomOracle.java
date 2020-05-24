@@ -1,3 +1,5 @@
+package my.ditto.bishop;
+
 import org.bouncycastle.crypto.digests.Blake2bDigest;
 import org.bouncycastle.crypto.generators.HKDFBytesGenerator;
 import org.bouncycastle.crypto.params.HKDFParameters;

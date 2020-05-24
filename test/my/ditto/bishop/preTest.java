@@ -1,3 +1,5 @@
+package my.ditto.bishop;
+
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
 import net.i2p.crypto.eddsa.EdDSAPublicKey;
 import org.bouncycastle.jce.interfaces.ECPrivateKey;
@@ -196,7 +198,7 @@ class preTest {
         capsule.set_correctness_key(alicePublic, bobPublic, aliceVerifying);
 
         ArrayList<cFrag> cfrags = new ArrayList<>();
-        for (kFrag kFrag : kfrags) {
+        for (my.ditto.bishop.kFrag kFrag : kfrags) {
             cfrags.add(pre.reencrypt(kFrag, capsule, true, null, true));
         }
         capsule.attach_cfrag(cfrags.get(0));
