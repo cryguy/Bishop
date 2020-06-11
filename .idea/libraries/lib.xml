@@ -12,6 +12,7 @@
       <root url="jar://$PROJECT_DIR$/lib/junit-platform-commons-1.4.2.jar!/" />
       <root url="jar://$PROJECT_DIR$/lib/junit-platform-engine-1.4.2.jar!/" />
       <root url="jar://$PROJECT_DIR$/lib/eddsa-0.3.0.jar!/" />
+      <root url="jar://$PROJECT_DIR$/lib/gson-2.2.4.jar!/" />
     </CLASSES>
     <JAVADOC />
     <SOURCES />

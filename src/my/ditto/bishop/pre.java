@@ -22,8 +22,8 @@ public class pre {
     private final static Logger LOGGER = Logger.getLogger(pre.class.getName());
 
     // re-keygen
-    public static ArrayList<kFrag> generate_kfrag(ECPrivateKey delegating_privkey, EdDSAPrivateKey signer, ECPublicKey receiving_pubkey, int threshold, int N, byte[] metadata) throws GeneralSecurityException, IOException {
-        return generate_kfrag(delegating_privkey, receiving_pubkey, threshold, N, signer, true, true, metadata);
+    public static ArrayList<kFrag> generate_kFrag(ECPrivateKey delegating_privateKey, EdDSAPrivateKey signer, ECPublicKey receiving_pubkey, int threshold, int N, byte[] metadata) throws GeneralSecurityException, IOException {
+        return generate_kFrag(delegating_privateKey, receiving_pubkey, threshold, N, signer, true, true, metadata);
     }
 
     public static SimpleEntry<byte[], Capsule> _encapsulate(ECPublicKey alice_pub, int length, byte[] metadata) throws GeneralSecurityException, IOException {
@@ -35,6 +35,7 @@ public class pre {
         ECPoint pub_r = g.multiply(r);
 
         BigInteger u = Helpers.getRandomPrivateKey().getD();
+
         ECPoint pub_u = g.multiply(u);
 
         BigInteger h = RandomOracle.hash2curve(new byte[][]{pub_r.getEncoded(true), pub_u.getEncoded(true)}, params);
@@ -71,10 +72,10 @@ public class pre {
 
         byte[] capsule_bytes = capsule.get_bytes();
 
-        byte[] nounce = new byte[12];
+        byte[] nonce = new byte[12];
         SecureRandom random = new SecureRandom();
-        random.nextBytes(nounce);
-        byte[] ciphertext = RandomOracle.chacha20_poly1305_enc(nounce, plaintext, key, capsule_bytes);
+        random.nextBytes(nonce);
+        byte[] ciphertext = RandomOracle.chacha20_poly1305_enc(nonce, plaintext, key, capsule_bytes);
         return new SimpleEntry<>(ciphertext, capsule);
     }
 
@@ -89,10 +90,10 @@ public class pre {
                 throw new SecurityException("Some cFrags are invalid");
             }
         }
-        return _decap_reencrypted(receiving, capsule, 32, capsule.metadata);
+        return decapsulateReencrypted(receiving, capsule, 32, capsule.metadata);
     }
 
-    static byte[] _decap_reencrypted(ECPrivateKey receiving, Capsule capsule, int key_length, byte[] metadata) throws GeneralSecurityException, IOException {
+    static byte[] decapsulateReencrypted(ECPrivateKey receiving, Capsule capsule, int key_length, byte[] metadata) throws GeneralSecurityException, IOException {
         ECParameterSpec params = capsule.params;
         ECPoint publicKey = Helpers.getPublicKey(receiving).getQ();
 
@@ -165,7 +166,7 @@ public class pre {
             // wtf happened here...
             // it didnt work before this
             if (!kfrag.verify_for_capsule(capsule))
-                throw new GeneralSecurityException("Invalid my.ditto.bishop.kFrag!");
+                throw new GeneralSecurityException("Invalid kFrag!");
 
         BigInteger rk = kfrag.bn_key;
 
@@ -185,10 +186,22 @@ public class pre {
         if (capsule.not_valid())
             throw new GeneralSecurityException("my.ditto.bishop.Capsule Verification Failed. my.ditto.bishop.Capsule tampered.");
 
-        if (capsule._attached_cfag.size() != 0)
-            key = _open_capsule(decryption_key, capsule, true);
-        else {
-            // decryption for alice
+//        if (capsule._attached_cfag.size() != 0)
+//            key = _open_capsule(decryption_key, capsule, true);
+//        else {
+//            // decryption for alice
+//            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+//            outputStream.write(capsule.point_e.add(capsule.point_v).multiply(decryption_key.getD()).getEncoded(true));
+//            if (capsule.metadata != null) {
+//                outputStream.write(capsule.metadata);
+//            }
+//            key = RandomOracle.kdf(outputStream.toByteArray(), 32, null, null);
+//        }
+        // try to open capsule
+        // option 2, doesnt leak as much info? doesnt matter that much i guess
+        try {
+            key = _open_capsule(decryption_key, capsule, check_proof);
+        } catch (GeneralSecurityException e) {
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             outputStream.write(capsule.point_e.add(capsule.point_v).multiply(decryption_key.getD()).getEncoded(true));
             if (capsule.metadata != null) {
@@ -196,12 +209,11 @@ public class pre {
             }
             key = RandomOracle.kdf(outputStream.toByteArray(), 32, null, null);
         }
-
         return RandomOracle.chacha20_poly1305_dec(cipher_text, key, capsule.get_bytes());
     }
 
     // verified this part
-    public static ArrayList<kFrag> generate_kfrag(ECPrivateKey delegating_privkey, ECPublicKey receiving_pubkey, int threshold, int N, EdDSAPrivateKey signer, boolean sign_delegating, boolean sign_receiving, byte[] metadata) throws GeneralSecurityException, IOException {
+    public static ArrayList<kFrag> generate_kFrag(ECPrivateKey delegating_privkey, ECPublicKey receiving_pubkey, int threshold, int N, EdDSAPrivateKey signer, boolean sign_delegating, boolean sign_receiving, byte[] metadata) throws GeneralSecurityException, IOException {
 
         if (threshold <= 0 || threshold > N)
             throw new IllegalArgumentException("Arguments threshold and N must satisfy 0 < threshold <= N");
@@ -209,7 +221,6 @@ public class pre {
             throw new IllegalArgumentException("Keys must have the same parameter set.");
 
         ECParameterSpec params = delegating_privkey.getParameters();
-        ECPoint g = params.getG();
         ECPublicKey delegating_pubkey = Helpers.getPublicKey(delegating_privkey);
         ECPoint bob_pubkey_point = receiving_pubkey.getQ();
 

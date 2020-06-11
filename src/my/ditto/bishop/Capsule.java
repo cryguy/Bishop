@@ -1,22 +1,20 @@
 package my.ditto.bishop;
 
+import com.google.gson.Gson;
 import net.i2p.crypto.eddsa.EdDSAPublicKey;
 import org.bouncycastle.jce.interfaces.ECPublicKey;
 import org.bouncycastle.jce.spec.ECParameterSpec;
 import org.bouncycastle.math.ec.ECPoint;
+import org.bouncycastle.util.encoders.Base64;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.security.GeneralSecurityException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
+import java.util.*;
 
 public class Capsule {
-    // TODO: make variables private
-    // TODO: From Bytes
-    byte[] metadata;
+    byte[] metadata = null;
     ECParameterSpec params;
     ECPoint point_e;
     ECPoint point_v;
@@ -26,6 +24,35 @@ public class Capsule {
     HashMap<String, ECPublicKey> correctness_key = new HashMap<>();
     ArrayList<cFrag> _attached_cfag = new ArrayList<>();
 
+    public Capsule(String json, ECParameterSpec params) {
+        Gson gson = new Gson();
+        TreeMap jsonData = gson.fromJson(json, TreeMap.class);
+        this.params = params;
+        this.point_e = params.getCurve().decodePoint(Base64.decode((String) jsonData.get("point_e")));
+        this.point_v = params.getCurve().decodePoint(Base64.decode((String) jsonData.get("point_v")));
+        this.signaure = new BigInteger(Base64.decode((String) jsonData.get("signature")));
+        if (jsonData.containsKey("metadata"))
+            this.metadata = Base64.decode((String) jsonData.get("metadata"));
+        this.hash = Base64.decode((String) jsonData.get("hash"));
+    }
+
+    public String toJson() {
+        Gson gson = new Gson();
+        // maybe revert to byte[], less overhead?
+        // why Base64? less Data to send... easier to handle as a string
+        Map<String, String> jsonData = new TreeMap<>() {{
+            //put("point_e", point_e.getEncoded(true));
+            put("point_e", new String(Base64.encode(point_e.getEncoded(true))));
+            put("point_v", new String(Base64.encode(point_v.getEncoded(true))));
+            put("signature", new String(Base64.encode(signaure.toByteArray())));
+            put("hash", new String(Base64.encode(hash)));
+        }};
+        if (metadata != null) {
+            jsonData.put("metadata", new String(Base64.encode(metadata)));
+        }
+        return gson.toJson(jsonData, TreeMap.class);
+    }
+
     public Capsule(ECParameterSpec params, ECPoint point_e, ECPoint point_v, BigInteger signaure, byte[] metadata, byte[] hash) {
         this.params = params;
         this.point_e = point_e;
@@ -33,6 +60,36 @@ public class Capsule {
         this.signaure = signaure;
         this.metadata = metadata;
         this.hash = hash;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        Capsule capsule = (Capsule) o;
+
+        if (!Arrays.equals(metadata, capsule.metadata)) return false;
+        if (!params.equals(capsule.params)) return false;
+        if (!point_e.equals(capsule.point_e)) return false;
+        if (!point_v.equals(capsule.point_v)) return false;
+        if (!signaure.equals(capsule.signaure)) return false;
+        if (!Arrays.equals(hash, capsule.hash)) return false;
+        if (verifying != null ? !verifying.equals(capsule.verifying) : capsule.verifying != null) return false;
+        if (correctness_key != null ? !correctness_key.equals(capsule.correctness_key) : capsule.correctness_key != null)
+            return false;
+        return _attached_cfag != null ? _attached_cfag.equals(capsule._attached_cfag) : capsule._attached_cfag == null;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Arrays.hashCode(metadata);
+        result = 31 * result + params.hashCode();
+        result = 31 * result + point_e.hashCode();
+        result = 31 * result + point_v.hashCode();
+        result = 31 * result + signaure.hashCode();
+        result = 31 * result + Arrays.hashCode(hash);
+        return result;
     }
 
     public cFrag first_cfrag() throws GeneralSecurityException {
@@ -51,7 +108,7 @@ public class Capsule {
         if (cfrag.verify_correctness(this))
             this._attached_cfag.add(cfrag);
         else
-            throw new GeneralSecurityException("my.ditto.bishop.cFrag is not correct! Cant be attached");
+            throw new GeneralSecurityException("cFrag is not correct! Cant be attached");
     }
 
     public boolean not_valid() throws GeneralSecurityException, IOException {

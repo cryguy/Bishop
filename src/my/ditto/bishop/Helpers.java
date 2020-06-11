@@ -8,6 +8,7 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.jce.spec.ECParameterSpec;
 import org.bouncycastle.jce.spec.ECPrivateKeySpec;
 import org.bouncycastle.jce.spec.ECPublicKeySpec;
+import org.bouncycastle.math.ec.ECPoint;
 
 import javax.crypto.KeyAgreement;
 import java.math.BigInteger;
@@ -179,16 +180,16 @@ public class Helpers {
     }
 
     static ECPublicKey getPublicKey(ECPrivateKey privateKey) throws GeneralSecurityException {
+        return getPublicKey(privateKey.getParameters().getG().multiply(privateKey.getD()));
+    }
 
-//        KeyPairGenerator kpg = KeyPairGenerator.getInstance("XDH");
+    static ECPublicKey getPublicKey(ECPoint q) throws GeneralSecurityException {
         X9ECParameters curveParams = CustomNamedCurves.getByName("Curve25519");
         KeyFactory kf = KeyFactory.getInstance("EC", "BC");
         ECParameterSpec pubSpec = new ECParameterSpec(curveParams.getCurve(), curveParams.getG(), curveParams.getN(), curveParams.getH(), curveParams.getSeed());
-        ECPublicKeySpec publicKeySpec = new ECPublicKeySpec(curveParams.getG().multiply(privateKey.getD()), pubSpec);
+        ECPublicKeySpec publicKeySpec = new ECPublicKeySpec(q, pubSpec);
         return (ECPublicKey) kf.generatePublic(publicKeySpec);
-
     }
-
 
     static BigInteger div(BigInteger a, BigInteger b, BigInteger curve) {
         BigInteger inverse = b.modInverse(curve);

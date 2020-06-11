@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" build-on-make="true" name="Bishop">
+    <output-path>$PROJECT_DIR$/out/artifacts/Bishop</output-path>
+    <root id="archive" name="Bishop.jar">
+      <element id="module-output" name="Bishop" />
+    </root>
+  </artifact>
+</component>

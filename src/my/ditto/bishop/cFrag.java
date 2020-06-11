@@ -1,10 +1,12 @@
 package my.ditto.bishop;
 
+import com.google.gson.Gson;
 import net.i2p.crypto.eddsa.EdDSAEngine;
 import net.i2p.crypto.eddsa.EdDSAPublicKey;
 import org.bouncycastle.jce.interfaces.ECPublicKey;
 import org.bouncycastle.jce.spec.ECParameterSpec;
 import org.bouncycastle.math.ec.ECPoint;
+import org.bouncycastle.util.encoders.Base64;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -12,16 +14,43 @@ import java.math.BigInteger;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.security.Signature;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
+import java.util.*;
 
 public class cFrag {
+
     ECPoint e1;
     ECPoint v1;
     byte[] kfrag_id;
     ECPublicKey precursor;
     CorrectnessProof proof;
+
+    public cFrag(String json, ECParameterSpec params) throws GeneralSecurityException {
+        Gson gson = new Gson();
+        var jsonData = gson.fromJson(json, TreeMap.class);
+
+        this.e1 = params.getCurve().decodePoint(Base64.decode((String) jsonData.get("e1")));
+        this.v1 = params.getCurve().decodePoint(Base64.decode((String) jsonData.get("v1")));
+        this.kfrag_id = Base64.decode((String) jsonData.get("kfrag_id"));
+        this.precursor = Helpers.getPublicKey(params.getCurve().decodePoint(Base64.decode((String) jsonData.get("precursor"))));
+        this.proof = new CorrectnessProof((String) jsonData.get("proof"), params);
+    }
+
+    public String toJson() throws GeneralSecurityException {
+        Gson gson = new Gson();
+        if (proof == null)
+            throw new GeneralSecurityException("No Proof Provided");
+
+        Map<String, String> jsonData = new TreeMap<>() {{
+            put("e1", new String(org.bouncycastle.util.encoders.Base64.encode(e1.getEncoded(true))));
+            put("v1", new String(org.bouncycastle.util.encoders.Base64.encode(v1.getEncoded(true))));
+            put("kfrag_id", new String(Base64.encode(kfrag_id)));
+            put("precursor", new String(Base64.encode(precursor.getQ().getEncoded(true))));
+            put("proof", proof.toJson());
+        }};
+
+        return gson.toJson(jsonData, TreeMap.class);
+    }
+
 
     public cFrag(ECPoint e1, ECPoint v1, byte[] kfrag_id, ECPublicKey precursor) {
         this(e1, v1, kfrag_id, precursor, null);
@@ -33,17 +62,6 @@ public class cFrag {
         this.kfrag_id = kfrag_id;
         this.precursor = precursor;
         this.proof = proof;
-    }
-
-    public byte[] to_bytes() throws IOException {
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        outputStream.write(e1.getEncoded(true));
-        outputStream.write(v1.getEncoded(true));
-        outputStream.write(kfrag_id);
-        outputStream.write(precursor.getEncoded());
-        if (proof != null)
-            outputStream.write(proof.to_bytes());
-        return outputStream.toByteArray();
     }
 
     public void proof_correctness(Capsule capsule, kFrag kfrag, byte[] metadata) throws GeneralSecurityException, IOException {

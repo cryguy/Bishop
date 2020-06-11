@@ -7,7 +7,6 @@ import org.bouncycastle.jce.interfaces.ECPublicKey;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.math.ec.ECPoint;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -24,6 +23,25 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class preTest {
+
+    @Test
+    void test_Capsule_serialization() throws GeneralSecurityException, IOException {
+        // given compressed bytes, able to retrieve original ECPoint, sanity check...
+
+        Security.addProvider(new BouncyCastleProvider());
+        ECPrivateKey alicePrivate = Helpers.getRandomPrivateKey();
+        ECPublicKey alicePublic = Helpers.getPublicKey(alicePrivate);
+
+        byte[] plaintext = "Hello World!".getBytes();
+
+        SimpleEntry<byte[], Capsule> encrypt = pre.encrypt(alicePublic, plaintext, null);
+
+        Capsule capsule = encrypt.getValue();
+        System.out.println(capsule.toJson());
+        assertEquals(capsule, new Capsule(capsule.toJson(), alicePrivate.getParameters()));
+
+    }
+
     @Test
     void test_self_decrypt() throws GeneralSecurityException, IOException {
         Security.addProvider(new BouncyCastleProvider());
@@ -78,7 +96,6 @@ class preTest {
 
         byte[] ciphertext = encrypt.getKey();
         Capsule capsule = encrypt.getValue();
-
         {
             // try decrypt with alice's own key
             assertEquals(Helpers.bytesToHex(file), Helpers.bytesToHex(pre.decrypt(ciphertext, capsule, alicePrivate, true)));
@@ -88,11 +105,9 @@ class preTest {
             Assertions.assertThrows(GeneralSecurityException.class, () -> pre.decrypt(ciphertext, capsule, bobPrivate, true));
         }
 
-        ArrayList<kFrag> kfrags = pre.generate_kfrag(alicePrivate, aliceSigning, bobPublic, 5, 10, null); // somehow works if N=1
+        ArrayList<kFrag> kfrags = pre.generate_kFrag(alicePrivate, aliceSigning, bobPublic, 5, 10, null); // somehow works if N=1
         capsule.set_correctness_key(alicePublic, bobPublic, aliceVerifying);
 
-        ArrayList<cFrag> cfrags = new ArrayList<>();
-        var k1 = kfrags.get(0);
         var test = pre.reencrypt(kfrags.get(0), capsule, true, null, true);
         capsule.attach_cfrag(test);
         {
@@ -139,8 +154,9 @@ class preTest {
         return out;
     }
 
-    @RepeatedTest(50)
+    @Test
     void encrypt_decrypt_saaif() throws GeneralSecurityException {
+        // this test can fail if the generated key is unsuitable, this happens in about 10% of the cases...
         Security.addProvider(new BouncyCastleProvider());
         ECPrivateKey bobPrivate = Helpers.getRandomPrivateKey();
         ECPrivateKey alicePrivate = Helpers.getRandomPrivateKey(); // lazy...
@@ -194,7 +210,7 @@ class preTest {
             Assertions.assertThrows(GeneralSecurityException.class, () -> pre.decrypt(ciphertext, capsule, bobPrivate, true));
         }
 
-        ArrayList<kFrag> kfrags = pre.generate_kfrag(alicePrivate, aliceSigning, bobPublic, 5, 10, "with metadata!".getBytes());
+        ArrayList<kFrag> kfrags = pre.generate_kFrag(alicePrivate, aliceSigning, bobPublic, 5, 10, "with metadata!".getBytes());
         capsule.set_correctness_key(alicePublic, bobPublic, aliceVerifying);
 
         ArrayList<cFrag> cfrags = new ArrayList<>();
@@ -225,15 +241,83 @@ class preTest {
 
         {
             // try doing some bs... as an attacker
-            ArrayList<kFrag> kfrags_diffmeta = pre.generate_kfrag(alicePrivate, aliceSigning, bobPublic, 1, 2, "WRONG".getBytes());
+            ArrayList<kFrag> kfrags_diffmeta = pre.generate_kFrag(alicePrivate, aliceSigning, bobPublic, 1, 2, "WRONG".getBytes());
             //capsule.attach_cfrag();
             Capsule capsule1 = new Capsule(capsule.params, capsule.point_e, capsule.point_v, capsule.signaure, "WRONG".getBytes(), capsule.hash);
             capsule1.correctness_key = capsule.correctness_key;
 
             assertThrows(GeneralSecurityException.class, () -> capsule1._attached_cfag.add(pre.reencrypt(kfrags_diffmeta.get(0), capsule1, true, null, true)));
             assertThrows(GeneralSecurityException.class, () -> pre.decrypt(ciphertext, capsule1, bobPrivate, true));
-            assertThrows(GeneralSecurityException.class, () -> pre._decap_reencrypted(bobPrivate, capsule1, 32, capsule.metadata));
+            assertThrows(GeneralSecurityException.class, () -> pre.decapsulateReencrypted(bobPrivate, capsule1, 32, capsule.metadata));
         }
+
+    }
+
+    @Test
+    void test_proxy_decrypt_adversary() throws GeneralSecurityException, IOException {
+        Security.addProvider(new BouncyCastleProvider());
+        ECPrivateKey alicePrivate = Helpers.getRandomPrivateKey();
+        ECPublicKey alicePublic = Helpers.getPublicKey(alicePrivate);
+        net.i2p.crypto.eddsa.KeyPairGenerator edDsaKpg = new net.i2p.crypto.eddsa.KeyPairGenerator();
+        KeyPair keyPair = edDsaKpg.generateKeyPair();
+        EdDSAPrivateKey aliceSigning = (EdDSAPrivateKey) keyPair.getPrivate();
+        EdDSAPublicKey aliceVerifying = (EdDSAPublicKey) keyPair.getPublic();
+
+        ECPrivateKey bobPrivate = Helpers.getRandomPrivateKey();
+        ECPublicKey bobPublic = Helpers.getPublicKey(bobPrivate);
+
+
+        ECPrivateKey attackerPrivate = Helpers.getRandomPrivateKey();
+        ECPublicKey attackerPublic = Helpers.getPublicKey(bobPrivate);
+        //byte[] plaintext = "Hello World!".getBytes();
+        SecureRandom random = new SecureRandom();
+        byte[] plaintext = new byte[1000000 * 15];
+        random.nextBytes(plaintext);
+
+        SimpleEntry<byte[], Capsule> encrypt = pre.encrypt(alicePublic, plaintext, "with metadata!".getBytes());
+
+        byte[] ciphertext = encrypt.getKey();
+        Capsule capsule = encrypt.getValue();
+
+        {
+            // try decrypt with alice's own key
+            assertEquals(Helpers.bytesToHex(plaintext), Helpers.bytesToHex(pre.decrypt(ciphertext, capsule, alicePrivate, true)));
+        }
+        {
+            // try decrypt with bobs key without reencryption
+            Assertions.assertThrows(GeneralSecurityException.class, () -> pre.decrypt(ciphertext, capsule, bobPrivate, true));
+        }
+
+        ArrayList<kFrag> kfrags = pre.generate_kFrag(alicePrivate, aliceSigning, bobPublic, 5, 10, "with metadata!".getBytes());
+        capsule.set_correctness_key(alicePublic, bobPublic, aliceVerifying);
+
+        ArrayList<cFrag> cfrags = new ArrayList<>();
+        for (my.ditto.bishop.kFrag kFrag : kfrags) {
+            cfrags.add(pre.reencrypt(kFrag, capsule, true, null, true));
+        }
+        capsule.attach_cfrag(cfrags.get(0));
+        {
+            // not enough cfrags
+            Assertions.assertThrows(GeneralSecurityException.class, () -> pre.decrypt(ciphertext, capsule, bobPrivate, true));
+        }
+
+        {
+            Capsule capsule1 = new Capsule(capsule.params, capsule.point_e, capsule.point_v, capsule.signaure, "WRONGMETA".getBytes(), capsule.hash);
+            // try decrypt with bobs key without reencryption
+            Assertions.assertThrows(GeneralSecurityException.class, () -> pre.decrypt(ciphertext, capsule1, bobPrivate, true));
+        }
+
+
+        capsule._attached_cfag.clear();
+        for (cFrag cFrag : cfrags) {
+            capsule.attach_cfrag(cFrag);
+        }
+
+        Assertions.assertEquals(Helpers.bytesToHex(plaintext), Helpers.bytesToHex(pre.decrypt(ciphertext, capsule, alicePrivate, true)));
+        // all is good for bob
+        Assertions.assertEquals(Helpers.bytesToHex(plaintext), Helpers.bytesToHex(pre.decrypt(ciphertext, capsule, bobPrivate, true)));
+        // should fail for attacker
+        Assertions.assertThrows(GeneralSecurityException.class, () -> pre.decrypt(ciphertext, capsule, attackerPrivate, false));
 
     }
 }
