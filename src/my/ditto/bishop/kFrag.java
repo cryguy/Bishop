@@ -73,7 +73,7 @@ public class kFrag {
         this.key_in_signature = key_in_signature;
     }
 
-    private boolean verify(EdDSAPublicKey signing_pubkey, ECPublicKey delegating_pubkey, ECPublicKey receiving_pubkey, ECParameterSpec params, byte[] metadata) throws IOException, NoSuchAlgorithmException, InvalidKeyException, SignatureException {
+    boolean verify(EdDSAPublicKey signing_pubkey, ECPublicKey delegating_pubkey, ECPublicKey receiving_pubkey, ECParameterSpec params, byte[] metadata) throws IOException, NoSuchAlgorithmException, InvalidKeyException, SignatureException {
         ECPoint u = RandomOracle.unsafeHash2Point(params.getG().getEncoded(true), "NuCypher/UmbralParameters/u".getBytes(), params);
 
         boolean correct_commitment = this.point_commitment.equals(u.multiply(this.bn_key));
@@ -102,7 +102,7 @@ public class kFrag {
     }
 
     public boolean verify_for_capsule(Capsule capsule) throws GeneralSecurityException, IOException {
-        return verify(capsule.verifying, capsule.correctness_key.get("delegating"), capsule.correctness_key.get("receiving"), capsule.params, capsule.metadata);
+        return verify(capsule.verifying, capsule.correctness_key.get("delegating"), capsule.correctness_key.get("receiving"), capsule.params, capsule.getMetadata());
     }
 
     boolean delegating_key_in_sig() {

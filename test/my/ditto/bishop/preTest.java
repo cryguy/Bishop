@@ -5,6 +5,7 @@ import net.i2p.crypto.eddsa.EdDSAPublicKey;
 import org.bouncycastle.jce.interfaces.ECPrivateKey;
 import org.bouncycastle.jce.interfaces.ECPublicKey;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.jce.spec.ECParameterSpec;
 import org.bouncycastle.math.ec.ECPoint;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -18,9 +19,9 @@ import java.security.Security;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
 class preTest {
 
@@ -37,7 +38,6 @@ class preTest {
         SimpleEntry<byte[], Capsule> encrypt = pre.encrypt(alicePublic, plaintext, null);
 
         Capsule capsule = encrypt.getValue();
-        System.out.println(capsule.toJson());
         assertEquals(capsule, new Capsule(capsule.toJson(), alicePrivate.getParameters()));
 
     }
@@ -114,6 +114,23 @@ class preTest {
             // not enough cfrags
             Assertions.assertThrows(GeneralSecurityException.class, () -> pre.decrypt(ciphertext, capsule, bobPrivate, true));
         }
+
+        {
+            ECParameterSpec parameterSpec = Helpers.getRandomPrivateKey().getParameters();
+
+            // args - 0
+            // capsule
+            Capsule capsulete = new Capsule(capsule.toJson(),parameterSpec);
+
+            capsulete.set_correctness_key(alicePublic,bobPublic,aliceVerifying);
+            kFrag frag = new kFrag(kfrags.get(0).toJson(), parameterSpec);
+
+            assertTrue(pre.reencrypt(frag, capsulete, true, null, true).verify_correctness(capsule));
+        }
+
+
+
+
         // enough cfrags
         capsule._attached_cfag.clear();
         capsule.attach_cfrag(pre.reencrypt(kfrags.get(0), capsule, true, null, true));
@@ -248,7 +265,7 @@ class preTest {
 
             assertThrows(GeneralSecurityException.class, () -> capsule1._attached_cfag.add(pre.reencrypt(kfrags_diffmeta.get(0), capsule1, true, null, true)));
             assertThrows(GeneralSecurityException.class, () -> pre.decrypt(ciphertext, capsule1, bobPrivate, true));
-            assertThrows(GeneralSecurityException.class, () -> pre.decapsulateReencrypted(bobPrivate, capsule1, 32, capsule.metadata));
+            //assertThrows(GeneralSecurityException.class, () -> pre.decapsulateReencrypted(bobPrivate, capsule1, 32, capsule.metadata));
         }
 
     }

@@ -2,6 +2,7 @@ package my.ditto.bishop;
 
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
 import net.i2p.crypto.eddsa.EdDSAPublicKey;
+import net.i2p.crypto.eddsa.spec.EdDSAPublicKeySpec;
 import org.bouncycastle.jce.interfaces.ECPrivateKey;
 import org.bouncycastle.jce.interfaces.ECPublicKey;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
@@ -11,9 +12,12 @@ import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.security.KeyPair;
 import java.security.Security;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Arrays;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FragmentsSerializationTest {
@@ -29,6 +33,19 @@ class FragmentsSerializationTest {
         EdDSAPrivateKey aliceSigning = (EdDSAPrivateKey) keyPair.getPrivate();
         EdDSAPublicKey aliceVerifying = (EdDSAPublicKey) keyPair.getPublic();
 
+        System.out.println(Helpers.bytesToHex(aliceVerifying.getEncoded()));
+        X509EncodedKeySpec encoded = new X509EncodedKeySpec(Helpers.hexStringToByteArray(Helpers.bytesToHex(aliceVerifying.getEncoded())));
+
+        EdDSAPublicKey keyIn = new EdDSAPublicKey(encoded);
+
+        // Encode
+        EdDSAPublicKeySpec decoded = new EdDSAPublicKeySpec(
+                keyIn.getA(),
+                keyIn.getParams());
+        EdDSAPublicKey keyOut = new EdDSAPublicKey(decoded);
+
+        // Check
+        assertEquals(Helpers.bytesToHex(keyOut.getEncoded()), Helpers.bytesToHex(aliceVerifying.getEncoded()));
 
         ECPrivateKey bobPrivate = Helpers.getRandomPrivateKey();
         ECPublicKey bobPublic = Helpers.getPublicKey(bobPrivate);

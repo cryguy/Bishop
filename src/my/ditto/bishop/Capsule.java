@@ -14,6 +14,7 @@ import java.security.GeneralSecurityException;
 import java.util.*;
 
 public class Capsule {
+
     byte[] metadata = null;
     ECParameterSpec params;
     ECPoint point_e;
@@ -62,6 +63,10 @@ public class Capsule {
         this.hash = hash;
     }
 
+    public byte[] getMetadata() {
+        return metadata;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -75,10 +80,10 @@ public class Capsule {
         if (!point_v.equals(capsule.point_v)) return false;
         if (!signaure.equals(capsule.signaure)) return false;
         if (!Arrays.equals(hash, capsule.hash)) return false;
-        if (verifying != null ? !verifying.equals(capsule.verifying) : capsule.verifying != null) return false;
-        if (correctness_key != null ? !correctness_key.equals(capsule.correctness_key) : capsule.correctness_key != null)
+        if (!Objects.equals(verifying, capsule.verifying)) return false;
+        if (!Objects.equals(correctness_key, capsule.correctness_key))
             return false;
-        return _attached_cfag != null ? _attached_cfag.equals(capsule._attached_cfag) : capsule._attached_cfag == null;
+        return Objects.equals(_attached_cfag, capsule._attached_cfag);
     }
 
     @Override

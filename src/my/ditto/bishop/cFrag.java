@@ -67,7 +67,7 @@ public class cFrag {
     public void proof_correctness(Capsule capsule, kFrag kfrag, byte[] metadata) throws GeneralSecurityException, IOException {
         ECParameterSpec params = capsule.params;
         if (capsule.not_valid())
-            throw new GeneralSecurityException("my.ditto.bishop.Capsule Verification Failed. my.ditto.bishop.Capsule tampered.");
+            throw new GeneralSecurityException("Capsule Verification Failed. Capsule tampered.");
 
         BigInteger rk = kfrag.bn_key;
         BigInteger t = Helpers.getRandomPrivateKey().getD();
@@ -84,11 +84,7 @@ public class cFrag {
         ECPoint v2 = v.multiply(t);
         ECPoint u2 = u.multiply(t);
 
-        ArrayList<byte[]> input = new ArrayList<>();
-
-        Collections.addAll(input, e.getEncoded(true), e1.getEncoded(true), e2.getEncoded(true),
-                v.getEncoded(true), v1.getEncoded(true), v2.getEncoded(true),
-                u.getEncoded(true), u1.getEncoded(true), u2.getEncoded(true));
+        ArrayList<byte[]> input = gather_inputs(e, v, e1, v1, u, u1, e2, v2, u2);
 
         if (metadata != null)
             input.add(metadata);
@@ -98,6 +94,15 @@ public class cFrag {
         BigInteger z3 = t.add(h.multiply(rk).mod(params.getCurve().getOrder())).mod(params.getCurve().getOrder());
 
         this.proof = new CorrectnessProof(e2, v2, u1, u2, z3, kfrag.signature_for_bob, metadata);
+    }
+
+    private ArrayList<byte[]> gather_inputs(ECPoint e, ECPoint v, ECPoint e1, ECPoint v1, ECPoint u, ECPoint u1, ECPoint e2, ECPoint v2, ECPoint u2) {
+        ArrayList<byte[]> input = new ArrayList<>();
+
+        Collections.addAll(input, e.getEncoded(true), e1.getEncoded(true), e2.getEncoded(true),
+                v.getEncoded(true), v1.getEncoded(true), v2.getEncoded(true),
+                u.getEncoded(true), u1.getEncoded(true), u2.getEncoded(true));
+        return input;
     }
 
     public boolean verify_correctness(Capsule capsule) throws GeneralSecurityException, IOException {
@@ -125,11 +130,7 @@ public class cFrag {
         ECPoint v2 = proof.v2;
         ECPoint u2 = proof.pok;
 
-        ArrayList<byte[]> input = new ArrayList<>();
-
-        Collections.addAll(input, e.getEncoded(true), e1.getEncoded(true), e2.getEncoded(true),
-                v.getEncoded(true), v1.getEncoded(true), v2.getEncoded(true),
-                u.getEncoded(true), u1.getEncoded(true), u2.getEncoded(true));
+        ArrayList<byte[]> input = gather_inputs(e, v, e1, v1, u, u1, e2, v2, u2);
 
         if (proof.metadata != null)
             input.add(proof.metadata);

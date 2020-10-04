@@ -66,7 +66,6 @@ public class RandomOracle {
     static byte[] kdf(byte[] data, int key_length, byte[] salt, byte[] info) {
 
         HKDFParameters params = new HKDFParameters(data, salt, info);
-        Blake2b blake2b = Blake2b.Digest.newInstance();
 
         HKDFBytesGenerator hkdf = new HKDFBytesGenerator(new Blake2bDigest());
         hkdf.init(params);
@@ -75,6 +74,7 @@ public class RandomOracle {
         return output;
     }
 
+    // TODO: add customization options
     /*
         Blake2b and get resulting hash inside selected curve
      */
@@ -83,6 +83,7 @@ public class RandomOracle {
         // the following first_update is the "personalization" used by pyumbral.
         Blake2b blake2b = Blake2b.Digest.newInstance();
         // just following what is in the original implementation... which is dumb dumb...
+        // should add customization options.
         {
             // i spent 2 days here...
             // the magic string is "hash_to_curvebn" + padding till its 64 bytes
@@ -136,12 +137,26 @@ public class RandomOracle {
             byte[] idata = Helpers.intToBytes(i, 4);
 
             Blake2b blake2b = Blake2b.Digest.newInstance();
+            // why did i do this???
+            // ans : this is to be the same as pyUmbral - might change this... can cause privacy issues
+            /*
+            def __init__(self, customization_string: bytes = b''):
+
+                if len(customization_string) > Hash.CUSTOMIZATION_STRING_LENGTH:
+                    raise ValueError("The maximum length of the customization string is "
+                                     "{} bytes".format(Hash.CUSTOMIZATION_STRING_LENGTH))
+
+                self.customization_string = customization_string.ljust(
+                    Hash.CUSTOMIZATION_STRING_LENGTH,
+                    Hash.CUSTOMIZATION_STRING_PAD
+                )
+                self.update(self.customization_string)
+             */
             // do stupid initialization...
             {
                 byte[] first_update = new byte[64];
                 blake2b.update(first_update);
             }
-
 
             output.write(label_data);
             output.write(idata);

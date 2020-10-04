@@ -93,7 +93,7 @@ public class pre {
         return decapsulateReencrypted(receiving, capsule, 32, capsule.metadata);
     }
 
-    static byte[] decapsulateReencrypted(ECPrivateKey receiving, Capsule capsule, int key_length, byte[] metadata) throws GeneralSecurityException, IOException {
+    private static byte[] decapsulateReencrypted(ECPrivateKey receiving, Capsule capsule, int key_length, byte[] metadata) throws GeneralSecurityException, IOException {
         ECParameterSpec params = capsule.params;
         ECPoint publicKey = Helpers.getPublicKey(receiving).getQ();
 
@@ -184,7 +184,7 @@ public class pre {
     public static byte[] decrypt(byte[] cipher_text, Capsule capsule, ECPrivateKey decryption_key, boolean check_proof) throws IOException, GeneralSecurityException {
         byte[] key;
         if (capsule.not_valid())
-            throw new GeneralSecurityException("my.ditto.bishop.Capsule Verification Failed. my.ditto.bishop.Capsule tampered.");
+            throw new GeneralSecurityException("Capsule Verification Failed. Capsule tampered.");
 
 //        if (capsule._attached_cfag.size() != 0)
 //            key = _open_capsule(decryption_key, capsule, true);
