@@ -90,7 +90,7 @@ public class pre {
                 throw new SecurityException("Some cFrags are invalid");
             }
         }
-        return decapsulateReencrypted(receiving, capsule, 32, capsule.metadata);
+        return decapsulateReencrypted(receiving, capsule, 32, capsule.getMetadata());
     }
 
     private static byte[] decapsulateReencrypted(ECPrivateKey receiving, Capsule capsule, int key_length, byte[] metadata) throws GeneralSecurityException, IOException {
@@ -204,8 +204,8 @@ public class pre {
         } catch (GeneralSecurityException e) {
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             outputStream.write(capsule.point_e.add(capsule.point_v).multiply(decryption_key.getD()).getEncoded(true));
-            if (capsule.metadata != null) {
-                outputStream.write(capsule.metadata);
+            if (capsule.getMetadata() != null) {
+                outputStream.write(capsule.getMetadata());
             }
             key = RandomOracle.kdf(outputStream.toByteArray(), 32, null, null);
         }

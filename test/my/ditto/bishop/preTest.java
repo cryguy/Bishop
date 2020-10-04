@@ -60,16 +60,10 @@ class preTest {
         long timetaken_dec = (endTime - startTime) / 1000000;
         System.out.println("Time for dec : " + timetaken_dec + " ms");
         assertEquals(Arrays.toString(file), Arrays.toString(cleardec));
-        assertThrows(GeneralSecurityException.class, () -> {
-            Capsule modified = encrypt.getValue();
-            modified.metadata = null;
-            pre.decrypt(encrypt.getKey(), modified, alicePrivate, true);
-        });
-        assertThrows(GeneralSecurityException.class, () -> {
-            Capsule modified = encrypt.getValue();
-            modified.metadata = "FILE1".getBytes();
-            pre.decrypt(encrypt.getKey(), modified, alicePrivate, true);
-        });
+
+        // metadata should be private so... need to implement diff test
+        assertThrows(GeneralSecurityException.class, () -> pre.decrypt(encrypt.getKey(), pre.encrypt(Helpers.getPublicKey(alicePrivate), file, null).getValue(), alicePrivate, true));
+        assertThrows(GeneralSecurityException.class, () -> pre.decrypt(encrypt.getKey(), pre.encrypt(Helpers.getPublicKey(alicePrivate), file, "FILE1".getBytes()).getValue(), alicePrivate, true));
     }
 
     @Test

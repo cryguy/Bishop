@@ -15,7 +15,7 @@ import java.util.*;
 
 public class Capsule {
 
-    byte[] metadata = null;
+    private byte[] metadata = null;
     ECParameterSpec params;
     ECPoint point_e;
     ECPoint point_v;

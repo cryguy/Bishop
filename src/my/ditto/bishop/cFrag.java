@@ -147,8 +147,8 @@ public class cFrag {
         outputStream.write(u1.getEncoded(true));
         outputStream.write(precursor.getEncoded());
 
-        if (capsule.metadata != null) {
-            outputStream.write(capsule.metadata);
+        if (capsule.getMetadata() != null) {
+            outputStream.write(capsule.getMetadata());
         }
 
         Signature edDsaSigner = new EdDSAEngine(MessageDigest.getInstance("SHA-512"));

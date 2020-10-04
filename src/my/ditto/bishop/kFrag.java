@@ -32,7 +32,7 @@ public class kFrag {
     byte key_in_signature;
 
 
-    public kFrag(String json, ECParameterSpec params) throws GeneralSecurityException {
+ public kFrag(String json, ECParameterSpec params) throws GeneralSecurityException {
         Gson gson = new Gson();
         var jsonData = gson.fromJson(json, TreeMap.class);
 
