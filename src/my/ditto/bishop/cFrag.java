@@ -35,6 +35,30 @@ public class cFrag {
         this.proof = new CorrectnessProof((String) jsonData.get("proof"), params);
     }
 
+    public static cFrag reencrypt(kFrag kfrag, Capsule capsule, boolean provide_proof, byte[] proxy_meta, boolean verify_kfrag) throws GeneralSecurityException, IOException {
+        if (capsule.not_valid())
+            throw new GeneralSecurityException("my.ditto.bishop.Capsule Verification Failed. my.ditto.bishop.Capsule tampered.");
+        if (verify_kfrag)
+            // wtf happened here...
+            // it didnt work before this
+            if (!kfrag.verify_for_capsule(capsule))
+                throw new GeneralSecurityException("Invalid kFrag!");
+
+        BigInteger rk = kfrag.bn_key;
+        //System.out.println(rk.toString(16) + " RK");
+        ECPoint e1 = capsule.point_e.multiply(rk);
+        //System.out.println(Helpers.bytesToHex(e1.getEncoded(true)) + " - E1");
+
+        ECPoint v1 = capsule.point_v.multiply(rk);
+        //System.out.println(Helpers.bytesToHex(v1.getEncoded(true)) + " - V1");
+        cFrag cfrag = new cFrag(e1, v1, kfrag.identifier, kfrag.point_precursor);
+
+        if (provide_proof) {
+            cfrag.proof_correctness(capsule, kfrag, proxy_meta);
+        }
+        return cfrag;
+    }
+
     public String toJson() throws GeneralSecurityException {
         Gson gson = new Gson();
         if (proof == null)
@@ -71,6 +95,7 @@ public class cFrag {
 
         BigInteger rk = kfrag.bn_key;
         BigInteger t = Helpers.getRandomPrivateKey().getD();
+
         ECPoint e = capsule.point_e;
         ECPoint v = capsule.point_v;
 
@@ -90,9 +115,10 @@ public class cFrag {
             input.add(metadata);
 
         BigInteger h = RandomOracle.hash2curve(input.toArray(new byte[0][]), params);
-
-        BigInteger z3 = t.add(h.multiply(rk).mod(params.getCurve().getOrder())).mod(params.getCurve().getOrder());
-
+        //System.out.println("h : " + h); // correct
+        BigInteger z3 = t.add(h.multiply(rk).mod(new BigInteger("7237005577332262213973186563042994240857116359379907606001950938285454250989"))).mod(new BigInteger("7237005577332262213973186563042994240857116359379907606001950938285454250989"));
+        //System.out.println("Z3 : " + z3.toString(16));
+        //System.out.println("h * rk : " + h.multiply(rk).mod(params.getCurve().getOrder()).toString(16));
         this.proof = new CorrectnessProof(e2, v2, u1, u2, z3, kfrag.signature_for_bob, metadata);
     }
 

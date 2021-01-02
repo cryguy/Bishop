@@ -36,7 +36,7 @@ public class Main {
             // arg 2 - kfrag
             kFrag frag = new kFrag(new String(org.bouncycastle.util.encoders.Base64.decode(args[2])), alicePub.getParameters());
             capsule.set_correctness_key(alicePub, bobPub, verify);
-            System.out.println(Base64.getEncoder().encodeToString(pre.reencrypt(frag, capsule, true, null, true).toJson().getBytes()));
+            System.out.println(Base64.getEncoder().encodeToString(cFrag.reencrypt(frag, capsule, true, null, true).toJson().getBytes()));
         }
     }
 }

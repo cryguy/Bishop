@@ -22,13 +22,13 @@ public class Helpers {
 
     private static final char[] HEX_ARRAY = "0123456789ABCDEF".toCharArray();
 
-    static byte[] intToBytes( final int i ,final int length) {
+    public static byte[] intToBytes( final int i ,final int length) {
         ByteBuffer bb = ByteBuffer.allocate(length);
         bb.putInt(i);
         return bb.array();
     }
 
-    static String bytesToHex(byte[] bytes) {
+    public static String bytesToHex(byte[] bytes) {
         if (bytes == null) {
             return null;
         }
@@ -41,7 +41,7 @@ public class Helpers {
         return new String(hexChars);
     }
 
-    static byte[] hexStringToByteArray(String s) {
+    public static byte[] hexStringToByteArray(String s) {
         int len = s.length();
         byte[] data = new byte[len / 2];
         for (int i = 0; i < len; i += 2) {
@@ -51,14 +51,14 @@ public class Helpers {
         return data;
     }
 
-    static ECPrivateKey getPrivateKey(BigInteger secret, ECParameterSpec ecSpec) throws InvalidKeySpecException, NoSuchAlgorithmException, NoSuchProviderException {
+    public static ECPrivateKey getPrivateKey(BigInteger secret, ECParameterSpec ecSpec) throws InvalidKeySpecException, NoSuchAlgorithmException, NoSuchProviderException {
         Security.addProvider(new BouncyCastleProvider());
         KeyFactory keyFactory = KeyFactory.getInstance("EC", "BC");
         ECPrivateKeySpec privateKeySpec = new ECPrivateKeySpec(secret, ecSpec);
         return (ECPrivateKey) keyFactory.generatePrivate(privateKeySpec);
     }
 
-    static int[] to_mnemonic(byte[] data) throws GeneralSecurityException {
+    public static int[] to_mnemonic(byte[] data) throws GeneralSecurityException {
 
         StringBuilder data_bin = new StringBuilder();
         for (byte datum : data) {
@@ -117,7 +117,7 @@ public class Helpers {
         return returning;
     }
 
-    static byte[] from_mneumonic(int[] data) {
+    public static byte[] from_mneumonic(int[] data) {
 
         StringBuilder data_bin = new StringBuilder();
         for (int i = 0; i < data.length - 1; i++) {
@@ -158,7 +158,7 @@ public class Helpers {
     }
 
     //keygen
-    static ECPrivateKey getRandomPrivateKey() throws NoSuchAlgorithmException, InvalidAlgorithmParameterException {
+    public static ECPrivateKey getRandomPrivateKey() throws NoSuchAlgorithmException, InvalidAlgorithmParameterException {
         X9ECParameters curveParams = CustomNamedCurves.getByName("Curve25519");
         ECParameterSpec ecSpec = new ECParameterSpec(curveParams.getCurve(), curveParams.getG(), curveParams.getN(), curveParams.getH(), curveParams.getSeed());
 
@@ -172,18 +172,18 @@ public class Helpers {
 
     }
 
-    static byte[] doECDH(ECPrivateKey privatekey, ECPublicKey publicKey) throws NoSuchProviderException, NoSuchAlgorithmException, InvalidKeyException {
+    public static byte[] doECDH(ECPrivateKey privatekey, ECPublicKey publicKey) throws NoSuchProviderException, NoSuchAlgorithmException, InvalidKeyException {
         KeyAgreement ka = KeyAgreement.getInstance("ECDH", "BC");
         ka.init(privatekey);
         ka.doPhase(publicKey, true);
         return ka.generateSecret();
     }
 
-    static ECPublicKey getPublicKey(ECPrivateKey privateKey) throws GeneralSecurityException {
+    public static ECPublicKey getPublicKey(ECPrivateKey privateKey) throws GeneralSecurityException {
         return getPublicKey(privateKey.getParameters().getG().multiply(privateKey.getD()));
     }
 
-    static ECPublicKey getPublicKey(ECPoint q) throws GeneralSecurityException {
+    public static ECPublicKey getPublicKey(ECPoint q) throws GeneralSecurityException {
         X9ECParameters curveParams = CustomNamedCurves.getByName("Curve25519");
         KeyFactory kf = KeyFactory.getInstance("EC", "BC");
         ECParameterSpec pubSpec = new ECParameterSpec(curveParams.getCurve(), curveParams.getG(), curveParams.getN(), curveParams.getH(), curveParams.getSeed());
@@ -231,10 +231,13 @@ public class Helpers {
         // addition = add a and b modulo order
         // true division = ( b modInverse order multiplied by a ) modulo order = a/b
         // result = ids[0] * inverse( (ids[0] - id_i) mod order ) mod order
-        BigInteger result = div(ids.get(0), ids.get(0).subtract(id_i).mod(params.getCurve().getOrder()), params.getCurve().getOrder());
+
+        BigInteger result = div(ids.get(0), ids.get(0).subtract(id_i).mod(new BigInteger("7237005577332262213973186563042994240857116359379907606001950938285454250989")), new BigInteger("7237005577332262213973186563042994240857116359379907606001950938285454250989"));
 
         for (int i = 1; i < ids.size(); i++) {
-            result = result.multiply(div(ids.get(i), ids.get(i).subtract(id_i).mod(params.getCurve().getOrder()), params.getCurve().getOrder())).mod(params.getCurve().getOrder());
+
+            result = result.multiply(div(ids.get(i), ids.get(i).subtract(id_i).mod(new BigInteger("7237005577332262213973186563042994240857116359379907606001950938285454250989")), new BigInteger("7237005577332262213973186563042994240857116359379907606001950938285454250989"))).mod(new BigInteger("7237005577332262213973186563042994240857116359379907606001950938285454250989"));
+
         }
         return result;
     }

@@ -2,7 +2,6 @@
   <library name="lib">
     <CLASSES>
       <root url="jar://$PROJECT_DIR$/lib/apiguardian-api-1.0.0.jar!/" />
-      <root url="jar://$PROJECT_DIR$/lib/bcprov-jdk15on-165.jar!/" />
       <root url="jar://$PROJECT_DIR$/lib/junit-jupiter-engine-5.4.2.jar!/" />
       <root url="jar://$PROJECT_DIR$/lib/junit-jupiter-params-5.4.2.jar!/" />
       <root url="jar://$PROJECT_DIR$/lib/junit-jupiter-api-5.4.2.jar!/" />
@@ -13,6 +12,7 @@
       <root url="jar://$PROJECT_DIR$/lib/junit-platform-engine-1.4.2.jar!/" />
       <root url="jar://$PROJECT_DIR$/lib/eddsa-0.3.0.jar!/" />
       <root url="jar://$PROJECT_DIR$/lib/gson-2.2.4.jar!/" />
+      <root url="jar://$PROJECT_DIR$/lib/bcprov-jdk14-1.67.jar!/" />
     </CLASSES>
     <JAVADOC />
     <SOURCES />

@@ -31,7 +31,7 @@ public class RandomOracle {
         return Arrays.copyOfRange(messageDigest, 0, 8);
     }
 
-    static byte[] chacha20_poly1305_enc(byte[] nounce, byte[] data, byte[] key, byte[] additional) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException, IOException {
+    public static byte[] chacha20_poly1305_enc(byte[] nounce, byte[] data, byte[] key, byte[] additional) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException, IOException {
         // init ChaCha20-Poly1305
         Cipher cipher = Cipher.getInstance("ChaCha20-Poly1305/None/NoPadding");
         AlgorithmParameterSpec ivParameterSpec = new IvParameterSpec(nounce);
@@ -50,7 +50,7 @@ public class RandomOracle {
         return output.toByteArray();
     }
 
-    static byte[] chacha20_poly1305_dec(byte[] data, byte[] key, byte[] aditional) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
+    public static byte[] chacha20_poly1305_dec(byte[] data, byte[] key, byte[] aditional) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
         Cipher cipher = Cipher.getInstance("ChaCha20-Poly1305/None/NoPadding");
         byte[] iv = Arrays.copyOfRange(data, 0, 12);
         byte[] cipher_text = Arrays.copyOfRange(data, 12, data.length);
@@ -93,21 +93,22 @@ public class RandomOracle {
 
             blake2b.update(stupid_constant);
         }
-        for (byte[] key : items_to_hash) {
-            if (key != null) {
-                blake2b.update(key);
+        for (int i = 0; i < items_to_hash.length; i++) {
+            if (items_to_hash[i] != null) {
+                blake2b.update(items_to_hash[i]);
             }
         }
 
         byte[] hash = blake2b.digest();
 
         BigInteger hash_digest = new BigInteger(Helpers.bytesToHex(hash), 16); // somehow if using the raw bytes here, some numbers will overflow to 0 causing the rest of the steps to be wrong
+
         if (hash_digest.signum() != 1) {
             throw new GeneralSecurityException("hash_digest is negative");
         }
 
         BigInteger one = new BigInteger("1");
-        BigInteger order_minus_one = parameters.getCurve().getOrder().subtract(one);
+        BigInteger order_minus_one = new BigInteger("7237005577332262213973186563042994240857116359379907606001950938285454250989").subtract(one);
 
         return hash_digest.mod(order_minus_one).add(one); // not with curve... beware!! , might break
     }

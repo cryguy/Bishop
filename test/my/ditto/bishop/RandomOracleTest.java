@@ -18,6 +18,7 @@ class RandomOracleTest {
     @Test
     void getStringHash() throws NoSuchAlgorithmException {
         assertEquals("4c591cee9247687d".toUpperCase(), Helpers.bytesToHex(RandomOracle.getStringHash("NON_INTERACTIVE")));
+        System.out.println(Helpers.bytesToHex(RandomOracle.getStringHash("X_COORDINATE")));
     }
 
     @Test
@@ -50,4 +51,6 @@ class RandomOracleTest {
         // kdf of 02e22f7c2de1aa561353077a7c262bce46e84f1bf3ff41f8e33382c70a809b68bb with salt abc = 5f519ff05f4a80bd94965d4a29468deabf89831b651b734ccd22ee807d74c7b4
         assertEquals("5f519ff05f4a80bd94965d4a29468deabf89831b651b734ccd22ee807d74c7b4".toUpperCase(), Helpers.bytesToHex(RandomOracle.kdf(Helpers.hexStringToByteArray("02e22f7c2de1aa561353077a7c262bce46e84f1bf3ff41f8e33382c70a809b68bb"), 32, "abc".getBytes(), null)));
     }
+
+
 }
