@@ -2,10 +2,10 @@ package my.ditto.bishop;
 
 import com.google.gson.Gson;
 import net.i2p.crypto.eddsa.EdDSAPublicKey;
-import org.bouncycastle.jce.interfaces.ECPublicKey;
-import org.bouncycastle.jce.spec.ECParameterSpec;
-import org.bouncycastle.math.ec.ECPoint;
-import org.bouncycastle.util.encoders.Base64;
+import org.spongycastle.jce.interfaces.ECPublicKey;
+import org.spongycastle.jce.spec.ECParameterSpec;
+import org.spongycastle.math.ec.ECPoint;
+import org.spongycastle.util.encoders.Base64;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -32,7 +32,7 @@ public class Capsule {
         this.point_e = params.getCurve().decodePoint(Base64.decode((String) jsonData.get("point_e")));
         this.point_v = params.getCurve().decodePoint(Base64.decode((String) jsonData.get("point_v")));
         this.signaure = new BigInteger(Base64.decode((String) jsonData.get("signature")));
-        if (jsonData.containsKey("metadata"))
+        if (jsonData.containsKey("metadata") && !jsonData.get("metadata").equals(""))
             this.metadata = Base64.decode((String) jsonData.get("metadata"));
         this.hash = Base64.decode((String) jsonData.get("hash"));
     }

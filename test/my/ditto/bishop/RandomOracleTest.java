@@ -1,6 +1,6 @@
 package my.ditto.bishop;
 
-import org.bouncycastle.jce.interfaces.ECPrivateKey;
+import org.spongycastle.jce.interfaces.ECPrivateKey;
 import org.junit.jupiter.api.Test;
 
 import javax.crypto.BadPaddingException;
@@ -42,6 +42,7 @@ class RandomOracleTest {
         BigInteger aliceBigInt = new BigInteger("43941d9fb0fbbae48838afc7fc2ba23c22bdde8bc18b3d745c7c90dfd34d3aa1", 16);
         ECPrivateKey alicePrivate = Helpers.getPrivateKey(aliceBigInt, Helpers.getRandomPrivateKey().getParameters());
         assert alicePrivate != null;
+        System.out.println("G - " + Helpers.bytesToHex(alicePrivate.getParameters().getG().getEncoded(true)));
         String result = Helpers.bytesToHex(RandomOracle.unsafeHash2Point(alicePrivate.getParameters().getG().getEncoded(true), "NuCypher/UmbralParameters/u".getBytes(), alicePrivate.getParameters()).getEncoded(true));
         assertEquals("027769A36D924905BDE272D32FE1C9663DF7671DCF689CE9FF31FC03D1A562A73C".toUpperCase(), result);
     }

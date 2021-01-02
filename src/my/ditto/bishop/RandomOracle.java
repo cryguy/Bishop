@@ -1,10 +1,10 @@
 package my.ditto.bishop;
 
-import org.bouncycastle.crypto.digests.Blake2bDigest;
-import org.bouncycastle.crypto.generators.HKDFBytesGenerator;
-import org.bouncycastle.crypto.params.HKDFParameters;
-import org.bouncycastle.jce.spec.ECParameterSpec;
-import org.bouncycastle.math.ec.ECPoint;
+import org.spongycastle.crypto.digests.Blake2bDigest;
+import org.spongycastle.crypto.generators.HKDFBytesGenerator;
+import org.spongycastle.crypto.params.HKDFParameters;
+import org.spongycastle.jce.spec.ECParameterSpec;
+import org.spongycastle.math.ec.ECPoint;
 import ove.crypto.digest.Blake2b;
 
 import javax.crypto.BadPaddingException;
@@ -177,7 +177,7 @@ public class RandomOracle {
             output.write(Arrays.copyOfRange(hash_digest, 1, hash_digest.length));
 
             byte[] compressed_point = output.toByteArray();
-
+            System.out.println("COMPRESSED_POINT - " + Helpers.bytesToHex(compressed_point));
             output.reset();
             try {
                 return param.getCurve().decodePoint(compressed_point);

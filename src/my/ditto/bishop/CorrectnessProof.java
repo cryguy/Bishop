@@ -1,9 +1,9 @@
 package my.ditto.bishop;
 
 import com.google.gson.Gson;
-import org.bouncycastle.jce.spec.ECParameterSpec;
-import org.bouncycastle.math.ec.ECPoint;
-import org.bouncycastle.util.encoders.Base64;
+import org.spongycastle.jce.spec.ECParameterSpec;
+import org.spongycastle.math.ec.ECPoint;
+import org.spongycastle.util.encoders.Base64;
 
 import java.math.BigInteger;
 import java.util.Map;

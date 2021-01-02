@@ -3,10 +3,10 @@ package my.ditto.bishop;
 import com.google.gson.Gson;
 import net.i2p.crypto.eddsa.EdDSAEngine;
 import net.i2p.crypto.eddsa.EdDSAPublicKey;
-import org.bouncycastle.jce.interfaces.ECPublicKey;
-import org.bouncycastle.jce.spec.ECParameterSpec;
-import org.bouncycastle.math.ec.ECPoint;
-import org.bouncycastle.util.encoders.Base64;
+import org.spongycastle.jce.interfaces.ECPublicKey;
+import org.spongycastle.jce.spec.ECParameterSpec;
+import org.spongycastle.math.ec.ECPoint;
+import org.spongycastle.util.encoders.Base64;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -65,8 +65,8 @@ public class cFrag {
             throw new GeneralSecurityException("No Proof Provided");
 
         Map<String, String> jsonData = new TreeMap<>() {{
-            put("e1", new String(org.bouncycastle.util.encoders.Base64.encode(e1.getEncoded(true))));
-            put("v1", new String(org.bouncycastle.util.encoders.Base64.encode(v1.getEncoded(true))));
+            put("e1", new String(org.spongycastle.util.encoders.Base64.encode(e1.getEncoded(true))));
+            put("v1", new String(org.spongycastle.util.encoders.Base64.encode(v1.getEncoded(true))));
             put("kfrag_id", new String(Base64.encode(kfrag_id)));
             put("precursor", new String(Base64.encode(precursor.getQ().getEncoded(true))));
             put("proof", proof.toJson());

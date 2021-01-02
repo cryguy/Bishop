@@ -1,14 +1,14 @@
 package my.ditto.bishop;
 
-import org.bouncycastle.asn1.x9.X9ECParameters;
-import org.bouncycastle.crypto.ec.CustomNamedCurves;
-import org.bouncycastle.jce.interfaces.ECPrivateKey;
-import org.bouncycastle.jce.interfaces.ECPublicKey;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.bouncycastle.jce.spec.ECParameterSpec;
-import org.bouncycastle.jce.spec.ECPrivateKeySpec;
-import org.bouncycastle.jce.spec.ECPublicKeySpec;
-import org.bouncycastle.math.ec.ECPoint;
+import org.spongycastle.asn1.x9.X9ECParameters;
+import org.spongycastle.crypto.ec.CustomNamedCurves;
+import org.spongycastle.jce.interfaces.ECPrivateKey;
+import org.spongycastle.jce.interfaces.ECPublicKey;
+import org.spongycastle.jce.provider.BouncyCastleProvider;
+import org.spongycastle.jce.spec.ECParameterSpec;
+import org.spongycastle.jce.spec.ECPrivateKeySpec;
+import org.spongycastle.jce.spec.ECPublicKeySpec;
+import org.spongycastle.math.ec.ECPoint;
 
 import javax.crypto.KeyAgreement;
 import java.math.BigInteger;
@@ -17,6 +17,7 @@ import java.security.*;
 import java.security.spec.InvalidKeySpecException;
 import java.util.ArrayList;
 import java.util.PrimitiveIterator;
+
 
 public class Helpers {
 
@@ -52,8 +53,7 @@ public class Helpers {
     }
 
     public static ECPrivateKey getPrivateKey(BigInteger secret, ECParameterSpec ecSpec) throws InvalidKeySpecException, NoSuchAlgorithmException, NoSuchProviderException {
-        Security.addProvider(new BouncyCastleProvider());
-        KeyFactory keyFactory = KeyFactory.getInstance("EC", "BC");
+        KeyFactory keyFactory = KeyFactory.getInstance("EC", "SC");
         ECPrivateKeySpec privateKeySpec = new ECPrivateKeySpec(secret, ecSpec);
         return (ECPrivateKey) keyFactory.generatePrivate(privateKeySpec);
     }
@@ -168,12 +168,13 @@ public class Helpers {
         KeyPair keyPair = kpg.generateKeyPair();
         PrivateKey privateKey = keyPair.getPrivate();
 
+
         return (ECPrivateKey) privateKey;
 
     }
 
     public static byte[] doECDH(ECPrivateKey privatekey, ECPublicKey publicKey) throws NoSuchProviderException, NoSuchAlgorithmException, InvalidKeyException {
-        KeyAgreement ka = KeyAgreement.getInstance("ECDH", "BC");
+        KeyAgreement ka = KeyAgreement.getInstance("ECDH", "SC");
         ka.init(privatekey);
         ka.doPhase(publicKey, true);
         return ka.generateSecret();
@@ -185,7 +186,7 @@ public class Helpers {
 
     public static ECPublicKey getPublicKey(ECPoint q) throws GeneralSecurityException {
         X9ECParameters curveParams = CustomNamedCurves.getByName("Curve25519");
-        KeyFactory kf = KeyFactory.getInstance("EC", "BC");
+        KeyFactory kf = KeyFactory.getInstance("EC", "SC");
         ECParameterSpec pubSpec = new ECParameterSpec(curveParams.getCurve(), curveParams.getG(), curveParams.getN(), curveParams.getH(), curveParams.getSeed());
         ECPublicKeySpec publicKeySpec = new ECPublicKeySpec(q, pubSpec);
         return (ECPublicKey) kf.generatePublic(publicKeySpec);

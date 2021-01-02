@@ -1,6 +1,6 @@
 package my.ditto.bishop;
 
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.spongycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;

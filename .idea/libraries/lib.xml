@@ -12,7 +12,9 @@
       <root url="jar://$PROJECT_DIR$/lib/junit-platform-engine-1.4.2.jar!/" />
       <root url="jar://$PROJECT_DIR$/lib/eddsa-0.3.0.jar!/" />
       <root url="jar://$PROJECT_DIR$/lib/gson-2.2.4.jar!/" />
-      <root url="jar://$PROJECT_DIR$/lib/bcprov-jdk14-1.67.jar!/" />
+      <root url="jar://$PROJECT_DIR$/lib/curve25519-java-0.5.0.jar!/" />
+      <root url="jar://$PROJECT_DIR$/lib/core-1.58.0.0.jar!/" />
+      <root url="jar://$PROJECT_DIR$/lib/prov-1.58.0.0.jar!/" />
     </CLASSES>
     <JAVADOC />
     <SOURCES />
