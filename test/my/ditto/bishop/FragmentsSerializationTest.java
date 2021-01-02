@@ -1,21 +1,19 @@
 package my.ditto.bishop;
 
-import net.i2p.crypto.eddsa.EdDSAEngine;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
 import net.i2p.crypto.eddsa.EdDSAPublicKey;
-import net.i2p.crypto.eddsa.spec.EdDSAPublicKeySpec;
+import org.junit.jupiter.api.Test;
 import org.spongycastle.jce.interfaces.ECPrivateKey;
 import org.spongycastle.jce.interfaces.ECPublicKey;
 import org.spongycastle.jce.provider.BouncyCastleProvider;
-import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
-import java.security.*;
-import java.security.spec.X509EncodedKeySpec;
+import java.security.GeneralSecurityException;
+import java.security.KeyPair;
+import java.security.Security;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FragmentsSerializationTest {

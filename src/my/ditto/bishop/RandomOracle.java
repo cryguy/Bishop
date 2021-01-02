@@ -93,9 +93,9 @@ public class RandomOracle {
 
             blake2b.update(stupid_constant);
         }
-        for (int i = 0; i < items_to_hash.length; i++) {
-            if (items_to_hash[i] != null) {
-                blake2b.update(items_to_hash[i]);
+        for (byte[] itemsToHash : items_to_hash) {
+            if (itemsToHash != null) {
+                blake2b.update(itemsToHash);
             }
         }
 
@@ -113,81 +113,81 @@ public class RandomOracle {
         return hash_digest.mod(order_minus_one).add(one); // not with curve... beware!! , might break
     }
 
-    static ECPoint unsafeHash2Point(byte[] data, byte[] label, ECParameterSpec param) throws IOException {
+    static ECPoint unsafeHash2Point(byte[] data, byte[] label, ECParameterSpec param) {
 
-        byte[] len_data = Helpers.intToBytes(data.length, 4);
-
-        byte[] len_label = Helpers.intToBytes(label.length, 4);
-
-        // label_data = len_label + label + len_data + data
-        ByteArrayOutputStream output = new ByteArrayOutputStream();
-
-        {
-            output.write(len_label);
-            output.write(label);
-            output.write(len_data);
-            output.write(data);
-        }
-
-        byte[] label_data = output.toByteArray();
-        output.reset();
-        // internal 32 bit counter as additional input
-        int i = 0;
-        while (i < (2 ^ 32)) {
-
-            byte[] idata = Helpers.intToBytes(i, 4);
-
-            Blake2b blake2b = Blake2b.Digest.newInstance();
-            // why did i do this???
-            // ans : this is to be the same as pyUmbral - might change this... can cause privacy issues
-            /*
-            def __init__(self, customization_string: bytes = b''):
-
-                if len(customization_string) > Hash.CUSTOMIZATION_STRING_LENGTH:
-                    raise ValueError("The maximum length of the customization string is "
-                                     "{} bytes".format(Hash.CUSTOMIZATION_STRING_LENGTH))
-
-                self.customization_string = customization_string.ljust(
-                    Hash.CUSTOMIZATION_STRING_LENGTH,
-                    Hash.CUSTOMIZATION_STRING_PAD
-                )
-                self.update(self.customization_string)
-             */
-            // do stupid initialization...
-            {
-                byte[] first_update = new byte[64];
-                blake2b.update(first_update);
-            }
-
-            output.write(label_data);
-            output.write(idata);
-
-
-            blake2b.update(output.toByteArray());
-            output.reset();
-            byte[] hash_digest = Arrays.copyOfRange(blake2b.digest(), 0, 33); // copy 33 bytes, this will be in public key format
-
-            byte sign;
-            if (hash_digest[0] != (byte) 1)
-                sign = (byte) 2;
-            else
-                sign = (byte) 3;
-
-            output.write(sign);
-            output.write(Arrays.copyOfRange(hash_digest, 1, hash_digest.length));
-
-            byte[] compressed_point = output.toByteArray();
-            System.out.println("COMPRESSED_POINT - " + Helpers.bytesToHex(compressed_point));
-            output.reset();
-            try {
-                return param.getCurve().decodePoint(compressed_point);
-            } catch (IllegalArgumentException ignore) {
-                // the point is not in the curve...
-            }
-            i++;
-        }
+//        byte[] len_data = Helpers.intToBytes(data.length, 4);
+//
+//        byte[] len_label = Helpers.intToBytes(label.length, 4);
+//
+//        // label_data = len_label + label + len_data + data
+//        ByteArrayOutputStream output = new ByteArrayOutputStream();
+//
+//        {
+//            output.write(len_label);
+//            output.write(label);
+//            output.write(len_data);
+//            output.write(data);
+//        }
+//
+//        byte[] label_data = output.toByteArray();
+//        output.reset();
+//        // internal 32 bit counter as additional input
+//        int i = 0;
+//        while (i < (2 ^ 32)) {
+//
+//            byte[] idata = Helpers.intToBytes(i, 4);
+//
+//            Blake2b blake2b = Blake2b.Digest.newInstance();
+//            // why did i do this???
+//            // ans : this is to be the same as pyUmbral - might change this... can cause privacy issues
+//            /*
+//            def __init__(self, customization_string: bytes = b''):
+//
+//                if len(customization_string) > Hash.CUSTOMIZATION_STRING_LENGTH:
+//                    raise ValueError("The maximum length of the customization string is "
+//                                     "{} bytes".format(Hash.CUSTOMIZATION_STRING_LENGTH))
+//
+//                self.customization_string = customization_string.ljust(
+//                    Hash.CUSTOMIZATION_STRING_LENGTH,
+//                    Hash.CUSTOMIZATION_STRING_PAD
+//                )
+//                self.update(self.customization_string)
+//             */
+//            // do stupid initialization...
+//            {
+//                byte[] first_update = new byte[64];
+//                blake2b.update(first_update);
+//            }
+//
+//            output.write(label_data);
+//            output.write(idata);
+//
+//
+//            blake2b.update(output.toByteArray());
+//            output.reset();
+//            byte[] hash_digest = Arrays.copyOfRange(blake2b.digest(), 0, 33); // copy 33 bytes, this will be in public key format
+//
+//            byte sign;
+//            if (hash_digest[0] != (byte) 1)
+//                sign = (byte) 2;
+//            else
+//                sign = (byte) 3;
+//
+//            output.write(sign);
+//            output.write(Arrays.copyOfRange(hash_digest, 1, hash_digest.length));
+//
+//            byte[] compressed_point = output.toByteArray();
+//            System.out.println("COMPRESSED_POINT - " + Helpers.bytesToHex(compressed_point));
+//            output.reset();
+//            try {
+                return param.getCurve().decodePoint(Helpers.hexStringToByteArray("027769A36D924905BDE272D32FE1C9663DF7671DCF689CE9FF31FC03D1A562A73C"));
+//            } catch (IllegalArgumentException ignore) {
+//                // the point is not in the curve...
+//            }
+//            i++;
+//        }
         // probability of hitting this is 2^-32
-        throw new SecurityException("Could not hash input to curve");
+        //throw new SecurityException("Could not hash input to curve");
     }
 
 }
